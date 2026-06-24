@@ -1,0 +1,17 @@
+---
+description: Always commit, push to GitHub, and deploy to Vercel production after code changes
+alwaysApply: true
+---
+
+# Always Push Live
+
+After completing any code changes in this project:
+
+1. Verify the build passes (`npm run build`)
+2. Commit with a clear message (only when there are changes to commit)
+3. Push to `origin/main` on GitHub
+4. Deploy to Vercel production: `npx vercel@latest --yes --prod --scope brightbeam-seo`
+
+Do this automatically at the end of tasks unless the user explicitly says not to deploy.
+
+Production URL: https://vlisted.vercel.app
