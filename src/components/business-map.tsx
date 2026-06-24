@@ -15,14 +15,14 @@ import "leaflet/dist/leaflet.css";
 
 const markerIcon = L.divIcon({
   className: "",
-  html: `<div style="background:#9333ea;width:14px;height:14px;border-radius:50%;border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.25)"></div>`,
+  html: `<div style="background:#4f46e5;width:14px;height:14px;border-radius:50%;border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.25)"></div>`,
   iconSize: [14, 14],
   iconAnchor: [7, 7],
 });
 
 const selectedMarkerIcon = L.divIcon({
   className: "",
-  html: `<div style="background:#1e0533;width:18px;height:18px;border-radius:50%;border:3px solid #9333ea;box-shadow:0 2px 8px rgba(0,0,0,0.35)"></div>`,
+  html: `<div style="background:#1e1b4b;width:18px;height:18px;border-radius:50%;border:3px solid #4f46e5;box-shadow:0 2px 8px rgba(0,0,0,0.35)"></div>`,
   iconSize: [18, 18],
   iconAnchor: [9, 9],
 });
