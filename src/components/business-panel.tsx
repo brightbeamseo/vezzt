@@ -68,7 +68,7 @@ export function BusinessPanel({ business }: BusinessPanelProps) {
         </p>
       </div>
 
-      <div className="border-b border-vezzt-700 bg-vezzt-600 p-5">
+      <div className="border-b border-vezzt-800 bg-vezzt-900 p-5">
         <p className="text-xs font-semibold uppercase tracking-wide text-vezzt-100">
           Vestimate
         </p>

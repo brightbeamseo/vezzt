@@ -13,17 +13,17 @@
   --font-mono: var(--font-sora), ui-sans-serif, sans-serif;
   --default-font-family: var(--font-sora), ui-sans-serif, sans-serif;
 
-  --color-vezzt-50: #e8eaf6;
-  --color-vezzt-100: #d4d7f0;
-  --color-vezzt-200: #b8bce6;
-  --color-vezzt-300: #979bd8;
-  --color-vezzt-400: #7578c8;
-  --color-vezzt-500: #5b5eb8;
-  --color-vezzt-600: #4338ca;
-  --color-vezzt-700: #3730a3;
-  --color-vezzt-800: #2e2878;
-  --color-vezzt-900: #1e1b4b;
-  --color-vezzt-950: #0f0d2e;
+  --color-vezzt-50: #eceef8;
+  --color-vezzt-100: #d8dcf2;
+  --color-vezzt-200: #b8bfe8;
+  --color-vezzt-300: #9499d8;
+  --color-vezzt-400: #6e6fc4;
+  --color-vezzt-500: #4f4fb0;
+  --color-vezzt-600: #3730a3;
+  --color-vezzt-700: #2e2878;
+  --color-vezzt-800: #252065;
+  --color-vezzt-900: #1a1750;
+  --color-vezzt-950: #0a0820;
 }
 
 html,

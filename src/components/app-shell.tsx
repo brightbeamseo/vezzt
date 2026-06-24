@@ -24,7 +24,7 @@ export function AppShell({ businesses }: AppShellProps) {
   );
 
   return (
-    <div className="flex h-screen flex-col bg-white">
+    <div className="flex h-screen flex-col bg-vezzt-50">
       <header className="flex shrink-0 items-center justify-between border-b border-neutral-200 bg-vezzt-950 px-4 py-3">
         <div className="flex items-center gap-2.5">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-vezzt-600 text-white">
