@@ -34,10 +34,8 @@ Open [http://localhost:3000](http://localhost:3000). You'll be redirected to `/l
 
 ## Deploy on Vercel
 
-1. Push this repo to GitHub
-2. Import the project in [Vercel](https://vercel.com/new)
-3. Add the environment variables above in the Vercel dashboard
-4. Deploy
+- **Production:** https://vezzt.vercel.app
+- **GitHub:** https://github.com/brightbeamseo/vezzt
 
 ## Tech Stack
 
