@@ -61,7 +61,12 @@ async function main() {
       where b.market_id = $1
         and b.target_sector = 'roofing'
         and b.qualification_status in ('qualified', 'below_threshold', 'manual_review')
-      order by coalesce(review_count, 0) desc, b.name
+      order by coalesce(
+               (
+                 select rs.review_count from review_snapshots rs
+                 where rs.business_id = b.id
+                 order by rs.snapshot_date desc limit 1
+               ), 0) desc, b.name
       `,
       [market.id],
     );
