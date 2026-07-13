@@ -1,5 +1,6 @@
 import type { Business } from "./types";
 
+/** Static demo data — used by scripts/seed-businesses.ts only. */
 export const businesses: Business[] = [
   {
     id: "1",
@@ -105,10 +106,3 @@ export const businesses: Business[] = [
   },
 ];
 
-export function formatCurrency(value: number): string {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0,
-  }).format(value);
-}

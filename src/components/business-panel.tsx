@@ -1,5 +1,5 @@
 import type { Business } from "@/lib/types";
-import { formatCurrency } from "@/lib/businesses";
+import { formatCurrency } from "@/lib/format";
 import {
   Building2,
   Calendar,

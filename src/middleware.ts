@@ -1,7 +1,10 @@
 import { auth } from "@/auth";
+import { updateSession } from "@/utils/supabase/middleware";
 import { NextResponse } from "next/server";
 
-export default auth((req) => {
+export default auth(async (req) => {
+  const supabaseResponse = await updateSession(req);
+
   const isLoggedIn = !!req.auth;
   const isLoginPage = req.nextUrl.pathname === "/login";
 
@@ -12,8 +15,10 @@ export default auth((req) => {
   if (isLoggedIn && isLoginPage) {
     return NextResponse.redirect(new URL("/", req.url));
   }
+
+  return supabaseResponse;
 });
 
 export const config = {
-  matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!api/dev/seed|api|_next/static|_next/image|favicon.ico).*)"],
 };

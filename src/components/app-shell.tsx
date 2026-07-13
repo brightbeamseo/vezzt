@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { signOut } from "next-auth/react";
 import { Building2, LogOut, Search } from "lucide-react";
-import { formatCurrency } from "@/lib/businesses";
+import { formatCurrency } from "@/lib/format";
 import type { Business } from "@/lib/types";
 import { BusinessMapWrapper } from "@/components/business-map-wrapper";
 import { BusinessPanel } from "@/components/business-panel";
@@ -35,13 +35,21 @@ export function AppShell({ businesses }: AppShellProps) {
             <p className="text-xs text-vezzt-300">Because your business has value.</p>
           </div>
         </div>
-        <button
-          onClick={() => signOut({ callbackUrl: "/login" })}
-          className="flex items-center gap-1.5 rounded-lg border border-vezzt-700 px-3 py-1.5 text-xs font-medium text-vezzt-200 transition hover:bg-vezzt-900"
-        >
-          <LogOut className="h-3.5 w-3.5" />
-          Sign out
-        </button>
+        <div className="flex items-center gap-2">
+          <a
+            href="/admin/qualification"
+            className="rounded-lg border border-vezzt-700 px-3 py-1.5 text-xs font-medium text-vezzt-200 transition hover:bg-vezzt-900"
+          >
+            Qualification
+          </a>
+          <button
+            onClick={() => signOut({ callbackUrl: "/login" })}
+            className="flex items-center gap-1.5 rounded-lg border border-vezzt-700 px-3 py-1.5 text-xs font-medium text-vezzt-200 transition hover:bg-vezzt-900"
+          >
+            <LogOut className="h-3.5 w-3.5" />
+            Sign out
+          </button>
+        </div>
       </header>
 
       <div className="flex min-h-0 flex-1">

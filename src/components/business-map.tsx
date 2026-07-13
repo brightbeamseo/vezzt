@@ -10,7 +10,7 @@ import {
 } from "react-leaflet";
 import L from "leaflet";
 import type { Business } from "@/lib/types";
-import { formatCurrency } from "@/lib/businesses";
+import { formatCurrency } from "@/lib/format";
 import "leaflet/dist/leaflet.css";
 
 const markerIcon = L.divIcon({
