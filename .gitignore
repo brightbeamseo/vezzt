@@ -23,6 +23,10 @@
 # misc
 .DS_Store
 *.pem
+/tmp/
+
+# local agent skill caches
+.agents/
 
 # debug
 npm-debug.log*
