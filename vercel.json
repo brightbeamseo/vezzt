@@ -1,12 +1,3 @@
 {
-  "crons": [
-    {
-      "path": "/api/cron/weekly-roofing-monitor",
-      "schedule": "37 21 * * 1"
-    },
-    {
-      "path": "/api/cron/monthly-roofing-monitor",
-      "schedule": "37 21 1 * *"
-    }
-  ]
+  "crons": []
 }

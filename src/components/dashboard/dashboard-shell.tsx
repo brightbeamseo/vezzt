@@ -33,7 +33,7 @@ export function DashboardShell({ businesses, summary }: Props) {
   const [city, setCity] = useState("all");
   const [category, setCategory] = useState("all");
   const [status, setStatus] = useState<"all" | QualificationStatus>("all");
-  const [minReviews, setMinReviews] = useState("");
+  const [minReviews, setMinReviews] = useState("100");
   const [minRating, setMinRating] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("reviewCount");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");

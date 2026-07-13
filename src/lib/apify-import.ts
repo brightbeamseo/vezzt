@@ -42,10 +42,13 @@ export type ApifyImportStats = {
   snapshotsCreated: number;
   snapshotsSkippedDuplicate: number;
   rejectedOutsideMarket: number;
+  rejectedClosed: number;
   sectorExcluded: number;
   failed: number;
   failedRecords: { placeId?: string | null; title?: string | null; error: string }[];
   status: "completed" | "completed_with_errors" | "failed";
+  /** Discovery-only: only insert Roofing contractor rows (non-qualifiers go to rejections). */
+  qualifyingOnly: boolean;
 };
 
 function apifyToken(): string {
@@ -151,10 +154,17 @@ export async function importApifyPlaces(options: {
   datasetId?: string | null;
   snapshotDate?: string; // YYYY-MM-DD; defaults to today (UTC)
   mode?: "discovery" | "monitor";
+  /**
+   * When true (default for discovery), only Roofing contractor rows are written
+   * to businesses. Wrong category / closed are logged to collection_rejections.
+   */
+  qualifyingOnly?: boolean;
   client?: Client;
 }): Promise<ApifyImportStats> {
   const market = getMarket(options.marketId ?? "boise-metro");
   const mode = options.mode ?? "discovery";
+  const qualifyingOnly =
+    options.qualifyingOnly ?? mode === "discovery";
   const snapshotDate =
     options.snapshotDate ?? new Date().toISOString().slice(0, 10);
   const ownsClient = !options.client;
@@ -174,10 +184,12 @@ export async function importApifyPlaces(options: {
     snapshotsCreated: 0,
     snapshotsSkippedDuplicate: 0,
     rejectedOutsideMarket: 0,
+    rejectedClosed: 0,
     sectorExcluded: 0,
     failed: 0,
     failedRecords: [],
     status: "completed",
+    qualifyingOnly,
   };
 
   const seen = new Set<string>();
@@ -244,6 +256,69 @@ export async function importApifyPlaces(options: {
               place.city ?? null,
               place.categoryName ?? null,
               membership.reason,
+              stats.scrapeRunId,
+              JSON.stringify(place),
+            ],
+          );
+          continue;
+        }
+
+        if (place.permanentlyClosed) {
+          stats.rejectedClosed += 1;
+          await client.query(
+            `insert into public.collection_rejections (
+              market_id, google_place_id, name, city, primary_category,
+              rejection_stage, reason, source, scrape_run_id, raw
+            ) values ($1,$2,$3,$4,$5,'invalid',$6,'google_apify',$7,$8::jsonb)`,
+            [
+              market.id,
+              place.placeId,
+              place.title,
+              place.city ?? null,
+              place.categoryName ?? null,
+              "Permanently closed",
+              stats.scrapeRunId,
+              JSON.stringify(place),
+            ],
+          );
+          continue;
+        }
+
+        const reviewThreshold = Number(
+          process.env.VEZZT_MIN_REVIEW_COUNT ?? DEFAULT_REVIEW_THRESHOLD,
+        );
+        const qualification = qualifyRoofingBusiness(
+          {
+            name: place.title,
+            primaryCategory: place.categoryName ?? null,
+            secondaryCategories: place.categories?.length
+              ? place.categories
+              : null,
+            websiteUrl: place.website ?? null,
+            reviewCount: place.reviewsCount ?? null,
+          },
+          Number.isFinite(reviewThreshold)
+            ? reviewThreshold
+            : DEFAULT_REVIEW_THRESHOLD,
+        );
+
+        if (
+          qualifyingOnly &&
+          qualification.qualificationStatus === "excluded"
+        ) {
+          stats.sectorExcluded += 1;
+          await client.query(
+            `insert into public.collection_rejections (
+              market_id, google_place_id, name, city, primary_category,
+              rejection_stage, reason, source, scrape_run_id, raw
+            ) values ($1,$2,$3,$4,$5,'sector',$6,'google_apify',$7,$8::jsonb)`,
+            [
+              market.id,
+              place.placeId,
+              place.title,
+              place.city ?? null,
+              place.categoryName ?? null,
+              qualification.qualificationReason,
               stats.scrapeRunId,
               JSON.stringify(place),
             ],
@@ -334,25 +409,11 @@ export async function importApifyPlaces(options: {
           stats.snapshotsSkippedDuplicate += 1;
         }
 
-        const reviewThreshold = Number(
-          process.env.VEZZT_MIN_REVIEW_COUNT ?? DEFAULT_REVIEW_THRESHOLD,
-        );
-        const qualification = qualifyRoofingBusiness(
-          {
-            name: place.title,
-            primaryCategory: place.categoryName ?? null,
-            secondaryCategories: place.categories?.length
-              ? place.categories
-              : null,
-            websiteUrl: place.website ?? null,
-            reviewCount: place.reviewsCount ?? null,
-          },
-          Number.isFinite(reviewThreshold)
-            ? reviewThreshold
-            : DEFAULT_REVIEW_THRESHOLD,
-        );
         const isRoofing = qualification.targetSector === "roofing";
-        if (qualification.qualificationStatus === "excluded") {
+        if (
+          !qualifyingOnly &&
+          qualification.qualificationStatus === "excluded"
+        ) {
           stats.sectorExcluded += 1;
           if (mode === "discovery") {
             await client.query(

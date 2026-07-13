@@ -18,6 +18,7 @@
     "clean:market": "tsx scripts/clean-out-of-market.ts",
     "setup:apify-weekly": "tsx scripts/setup-apify-weekly-schedule.ts",
     "setup:apify-collection": "tsx scripts/setup-apify-collection-schedules.ts",
+    "rebuild:roofing": "tsx scripts/reset-and-rebuild-roofing.ts",
     "monitor:tier1": "tsx scripts/monitor-tier1.ts",
     "compute:velocity": "tsx scripts/compute-review-velocity.ts",
     "report:discovery": "tsx scripts/discovery-report.ts",
