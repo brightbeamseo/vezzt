@@ -11,6 +11,8 @@ export type MarketDefinition = {
   state: string;
   /** Approved city names (case-insensitive match). */
   cities: string[];
+  /** Default discovery search terms for this market's vertical pilots. */
+  roofingSearchTerms: string[];
   /**
    * Optional bounding box for future coordinate validation.
    * [minLng, minLat, maxLng, maxLat] — not enforced yet.
@@ -26,11 +28,21 @@ export const MARKETS: Record<MarketId, MarketDefinition> = {
     cities: [
       "Boise",
       "Meridian",
-      "Eagle",
-      "Star",
-      "Kuna",
       "Nampa",
       "Caldwell",
+      "Eagle",
+      "Kuna",
+      "Star",
+      "Garden City",
+    ],
+    roofingSearchTerms: [
+      "roofing contractor",
+      "roofing company",
+      "roof repair",
+      "residential roofing",
+      "commercial roofing",
+      "metal roofing",
+      "flat roofing",
     ],
     // Rough Treasure Valley box — reserved for future coordinate checks
     boundingBox: [-116.95, 43.35, -115.95, 43.85],
@@ -57,13 +69,11 @@ export type MarketMembershipResult =
       ok: false;
       reason: string;
       city: string | null;
-      /** Reserved — coordinate check not active for this pilot. */
-      matchedBy?: never;
     };
 
 /**
  * Validate that a business belongs to the market.
- * Pilot: city allowlist only. Coordinates reserved for later.
+ * Current: city allowlist only. Coordinates reserved for later.
  */
 export function isInMarket(
   market: MarketDefinition,
@@ -83,8 +93,6 @@ export function isInMarket(
     return { ok: true, matchedBy: "city", city: canonical };
   }
 
-  // Future: if (market.boundingBox && lat/lng inside) return ok matchedBy coords
-
   if (!city) {
     return {
       ok: false,
@@ -103,4 +111,23 @@ export function isInMarket(
 /** Apify locationQuery strings — one city per collection job within the market. */
 export function marketLocationQueries(market: MarketDefinition): string[] {
   return market.cities.map((city) => `${city}, ${market.state}, USA`);
+}
+
+/** Full city × search-term discovery matrix for a market. */
+export function marketDiscoveryJobs(
+  market: MarketDefinition,
+  searchTerms: string[] = market.roofingSearchTerms,
+): { city: string; locationQuery: string; searchTerm: string }[] {
+  const jobs: { city: string; locationQuery: string; searchTerm: string }[] =
+    [];
+  for (const city of market.cities) {
+    for (const searchTerm of searchTerms) {
+      jobs.push({
+        city,
+        locationQuery: `${city}, ${market.state}, USA`,
+        searchTerm,
+      });
+    }
+  }
+  return jobs;
 }

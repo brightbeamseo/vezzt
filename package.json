@@ -16,6 +16,10 @@
     "scrape:market": "tsx scripts/scrape-market-apify.ts",
     "import:apify": "tsx scripts/import-apify-places.ts",
     "clean:market": "tsx scripts/clean-out-of-market.ts",
+    "monitor:tier1": "tsx scripts/monitor-tier1.ts",
+    "compute:velocity": "tsx scripts/compute-review-velocity.ts",
+    "report:discovery": "tsx scripts/discovery-report.ts",
+    "db:apply-monitoring": "tsx scripts/apply-sql.ts supabase/migrations/20250713180000_monitoring_tiers.sql",
     "verify:supabase": "tsx scripts/verify-supabase.ts"
   },
   "dependencies": {

@@ -11,6 +11,7 @@ import {
   qualifyRoofingBusiness,
   type QualificationStatus,
 } from "../src/lib/qualification";
+import { assignMonitoringTier } from "../src/lib/monitoring";
 import { connectSupabasePg } from "./db";
 
 type Row = {
@@ -118,6 +119,11 @@ async function main() {
         threshold,
       );
 
+      const monitoring = assignMonitoringTier(
+        row.review_count,
+        result.targetSector === "roofing",
+      );
+
       await client.query(
         `
         update public.businesses set
@@ -127,6 +133,9 @@ async function main() {
           target_sector = $5,
           review_threshold_met = $6,
           qualification_status = $7,
+          monitoring_tier = $8,
+          monitoring_frequency = $9,
+          next_monitor_at = coalesce(next_monitor_at, $10),
           updated_at = now()
         where id = $1
         `,
@@ -138,6 +147,9 @@ async function main() {
           result.targetSector,
           result.reviewThresholdMet,
           result.qualificationStatus,
+          monitoring.monitoringTier,
+          monitoring.monitoringFrequency,
+          monitoring.nextMonitorAt,
         ],
       );
 

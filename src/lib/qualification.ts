@@ -63,6 +63,9 @@ const EXCLUDE_CATEGORY_TERMS = [
   "restoration service",
   "water damage restoration",
   "fire damage restoration",
+  "insulation contractor",
+  "insulation company",
+  "insulation service",
 ];
 
 const EXCLUDE_NAME_HINTS = [
@@ -165,6 +168,10 @@ export function qualifyRoofingBusiness(
       !nameWebsite.strong;
     const isRestoration =
       excludeCategoryHit.includes("restoration") && !nameWebsite.strong;
+    const isInsulationOnly =
+      /insulation/.test(excludeCategoryHit) &&
+      !roofingCategoryHit &&
+      !nameWebsite.strong;
     const isPressureOrHandymanOrPaint =
       /pressure wash|handyman|handywoman|handyperson|paint/.test(
         excludeCategoryHit,
@@ -174,7 +181,8 @@ export function qualifyRoofingBusiness(
       isPressureOrHandymanOrPaint ||
       isSidingOnly ||
       isGeneralContractor ||
-      isRestoration
+      isRestoration ||
+      isInsulationOnly
     ) {
       // Borderline: name strongly says roofing despite exclude category
       if (nameWebsite.strong) {

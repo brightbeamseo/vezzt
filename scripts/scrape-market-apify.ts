@@ -1,42 +1,72 @@
 /**
- * Market-based Apify scrape: one Google Maps location job per market city.
+ * Full market discovery: one Apify job per (city × search term).
+ * Deduplicates by placeId across all jobs.
+ *
  * Usage:
+ *   tsx scripts/scrape-market-apify.ts --market=boise-metro --mode=discovery --max-per-search=20 --concurrency=2
  *   tsx scripts/scrape-market-apify.ts --market=boise-metro --query="roofing contractor" --max-per-city=5
  */
 import { mkdirSync, writeFileSync } from "node:fs";
 import { config } from "dotenv";
-import { getMarket, marketLocationQueries } from "../src/lib/markets";
+import {
+  getMarket,
+  marketDiscoveryJobs,
+  marketLocationQueries,
+} from "../src/lib/markets";
 
 config({ path: ".env.local" });
 
 type RunResult = {
   city: string;
+  searchTerm: string;
   locationQuery: string;
   runId: string;
   datasetId: string | null;
   status: string;
   itemCount: number;
+  usageTotalUsd: number | null;
   items: unknown[];
 };
 
 function parseArgs(argv: string[]) {
   let marketId = "boise-metro";
+  let mode: "discovery" | "single" = "discovery";
   let query = "roofing contractor";
-  let maxPerCity = 5;
+  let maxPerSearch = 20;
+  let concurrency = 2;
 
   for (const arg of argv) {
     if (arg.startsWith("--market=")) marketId = arg.split("=")[1];
+    if (arg.startsWith("--mode=")) {
+      mode = arg.split("=")[1] as "discovery" | "single";
+    }
     if (arg.startsWith("--query=")) query = arg.slice("--query=".length);
+    if (arg.startsWith("--max-per-search=")) {
+      maxPerSearch = Number(arg.split("=")[1]);
+    }
     if (arg.startsWith("--max-per-city=")) {
-      maxPerCity = Number(arg.split("=")[1]);
+      maxPerSearch = Number(arg.split("=")[1]);
+      mode = "single";
+    }
+    if (arg.startsWith("--concurrency=")) {
+      concurrency = Number(arg.split("=")[1]);
     }
   }
 
-  if (!Number.isFinite(maxPerCity) || maxPerCity < 1) {
-    throw new Error("Invalid --max-per-city");
+  if (!Number.isFinite(maxPerSearch) || maxPerSearch < 1) {
+    throw new Error("Invalid max-per-search");
+  }
+  if (!Number.isFinite(concurrency) || concurrency < 1) {
+    throw new Error("Invalid concurrency");
   }
 
-  return { market: getMarket(marketId), query, maxPerCity };
+  return {
+    market: getMarket(marketId),
+    mode,
+    query,
+    maxPerSearch,
+    concurrency,
+  };
 }
 
 function apifyToken(): string {
@@ -70,8 +100,12 @@ async function startRun(
 async function waitForRun(
   token: string,
   runId: string,
-  timeoutMs = 10 * 60 * 1000,
-): Promise<{ status: string; defaultDatasetId: string }> {
+  timeoutMs = 15 * 60 * 1000,
+): Promise<{
+  status: string;
+  defaultDatasetId: string;
+  usageTotalUsd: number | null;
+}> {
   const started = Date.now();
   while (Date.now() - started < timeoutMs) {
     const res = await fetch(
@@ -81,7 +115,11 @@ async function waitForRun(
       throw new Error(`Poll run failed: ${res.status} ${await res.text()}`);
     }
     const json = (await res.json()) as {
-      data: { status: string; defaultDatasetId: string };
+      data: {
+        status: string;
+        defaultDatasetId: string;
+        usageTotalUsd?: number;
+      };
     };
     const status = json.data.status;
     if (
@@ -93,9 +131,13 @@ async function waitForRun(
       return {
         status,
         defaultDatasetId: json.data.defaultDatasetId,
+        usageTotalUsd:
+          typeof json.data.usageTotalUsd === "number"
+            ? json.data.usageTotalUsd
+            : null,
       };
     }
-    await new Promise((r) => setTimeout(r, 5000));
+    await new Promise((r) => setTimeout(r, 4000));
   }
   throw new Error(`Timed out waiting for run ${runId}`);
 }
@@ -113,60 +155,102 @@ async function fetchDatasetItems(
   return (await res.json()) as unknown[];
 }
 
-async function main() {
-  const { market, query, maxPerCity } = parseArgs(process.argv.slice(2));
-  const token = apifyToken();
-  const locations = marketLocationQueries(market);
-  const results: RunResult[] = [];
+async function runJob(
+  token: string,
+  job: { city: string; locationQuery: string; searchTerm: string },
+  maxPerSearch: number,
+): Promise<RunResult> {
+  console.log(`→ ${job.city} / "${job.searchTerm}"`);
+  const run = await startRun(token, {
+    searchStringsArray: [job.searchTerm],
+    locationQuery: job.locationQuery,
+    maxCrawledPlacesPerSearch: maxPerSearch,
+    language: "en",
+    skipClosedPlaces: true,
+    scrapePlaceDetailPage: true,
+    maxReviews: 0,
+    maxImages: 0,
+  });
 
-  console.log(
-    `Scraping market ${market.id}: ${locations.length} city jobs, query="${query}", maxPerCity=${maxPerCity}`,
-  );
-
-  for (const locationQuery of locations) {
-    const city = locationQuery.split(",")[0].trim();
-    console.log(`→ Starting ${city}: ${locationQuery}`);
-
-    const run = await startRun(token, {
-      searchStringsArray: [query],
-      locationQuery,
-      maxCrawledPlacesPerSearch: maxPerCity,
-      language: "en",
-      skipClosedPlaces: true,
-      scrapePlaceDetailPage: true,
-      maxReviews: 0,
-      maxImages: 0,
-    });
-
-    const finished = await waitForRun(token, run.id);
-    if (finished.status !== "SUCCEEDED") {
-      console.error(`✗ ${city} ended with status ${finished.status}`);
-      results.push({
-        city,
-        locationQuery,
-        runId: run.id,
-        datasetId: finished.defaultDatasetId,
-        status: finished.status,
-        itemCount: 0,
-        items: [],
-      });
-      continue;
-    }
-
-    const items = await fetchDatasetItems(token, finished.defaultDatasetId);
-    console.log(`✓ ${city}: ${items.length} places (run ${run.id})`);
-    results.push({
-      city,
-      locationQuery,
+  const finished = await waitForRun(token, run.id);
+  if (finished.status !== "SUCCEEDED") {
+    console.error(
+      `✗ ${job.city} / "${job.searchTerm}" → ${finished.status}`,
+    );
+    return {
+      city: job.city,
+      searchTerm: job.searchTerm,
+      locationQuery: job.locationQuery,
       runId: run.id,
       datasetId: finished.defaultDatasetId,
       status: finished.status,
-      itemCount: items.length,
-      items,
-    });
+      itemCount: 0,
+      usageTotalUsd: finished.usageTotalUsd,
+      items: [],
+    };
   }
 
-  // Dedupe by placeId across cities
+  const items = await fetchDatasetItems(token, finished.defaultDatasetId);
+  console.log(
+    `✓ ${job.city} / "${job.searchTerm}": ${items.length} places ($${finished.usageTotalUsd ?? "?"})`,
+  );
+  return {
+    city: job.city,
+    searchTerm: job.searchTerm,
+    locationQuery: job.locationQuery,
+    runId: run.id,
+    datasetId: finished.defaultDatasetId,
+    status: finished.status,
+    itemCount: items.length,
+    usageTotalUsd: finished.usageTotalUsd,
+    items,
+  };
+}
+
+async function mapPool<T, R>(
+  items: T[],
+  concurrency: number,
+  fn: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let next = 0;
+
+  async function worker() {
+    while (next < items.length) {
+      const i = next++;
+      results[i] = await fn(items[i]);
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, items.length) }, () => worker()),
+  );
+  return results;
+}
+
+async function main() {
+  const { market, mode, query, maxPerSearch, concurrency } = parseArgs(
+    process.argv.slice(2),
+  );
+  const token = apifyToken();
+
+  const jobs =
+    mode === "discovery"
+      ? marketDiscoveryJobs(market)
+      : marketLocationQueries(market).map((locationQuery) => ({
+          city: locationQuery.split(",")[0].trim(),
+          locationQuery,
+          searchTerm: query,
+        }));
+
+  console.log(
+    `Market ${market.id}: ${jobs.length} jobs, mode=${mode}, maxPerSearch=${maxPerSearch}, concurrency=${concurrency}`,
+  );
+
+  const results = await mapPool(jobs, concurrency, (job) =>
+    runJob(token, job, maxPerSearch),
+  );
+
   const byPlaceId = new Map<string, unknown>();
   for (const result of results) {
     for (const item of result.items) {
@@ -179,9 +263,11 @@ async function main() {
   }
 
   const merged = [...byPlaceId.values()];
+  const totalUsd = results.reduce((n, r) => n + (r.usageTotalUsd ?? 0), 0);
   mkdirSync("tmp", { recursive: true });
-  const datasetPath = `tmp/${market.id}-roofing-market.json`;
-  const metaPath = `tmp/${market.id}-roofing-market-meta.json`;
+  const stamp = new Date().toISOString().slice(0, 10);
+  const datasetPath = `tmp/${market.id}-roofing-discovery-${stamp}.json`;
+  const metaPath = `tmp/${market.id}-roofing-discovery-${stamp}-meta.json`;
 
   writeFileSync(datasetPath, JSON.stringify(merged, null, 2));
   writeFileSync(
@@ -189,19 +275,23 @@ async function main() {
     JSON.stringify(
       {
         marketId: market.id,
-        query,
-        maxPerCity,
-        citiesScraped: locations.length,
+        mode,
+        maxPerSearch,
+        concurrency,
+        jobsPlanned: jobs.length,
         runs: results.map((r) => ({
           city: r.city,
+          searchTerm: r.searchTerm,
           locationQuery: r.locationQuery,
           runId: r.runId,
           datasetId: r.datasetId,
           status: r.status,
           itemCount: r.itemCount,
+          usageTotalUsd: r.usageTotalUsd,
         })),
         placesReturnedRaw: results.reduce((n, r) => n + r.itemCount, 0),
         placesReturnedDeduped: merged.length,
+        estimatedDiscoveryCostUsd: totalUsd,
         datasetPath,
       },
       null,
@@ -213,8 +303,10 @@ async function main() {
     JSON.stringify(
       {
         marketId: market.id,
+        jobs: jobs.length,
         placesReturnedRaw: results.reduce((n, r) => n + r.itemCount, 0),
         placesReturnedDeduped: merged.length,
+        estimatedDiscoveryCostUsd: totalUsd,
         datasetPath,
         metaPath,
       },

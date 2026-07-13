@@ -11,7 +11,8 @@ import {
   DEFAULT_REVIEW_THRESHOLD,
   qualifyRoofingBusiness,
 } from "../src/lib/qualification";
-import { getMarket, isInMarket, type MarketDefinition } from "../src/lib/markets";
+import { getMarket, isInMarket } from "../src/lib/markets";
+import { assignMonitoringTier } from "../src/lib/monitoring";
 
 config({ path: ".env.local" });
 
@@ -51,6 +52,8 @@ type ImportReport = {
   placesReturned: number;
   businessesAccepted: number;
   businessesRejected: number;
+  sectorExcluded: number;
+  sectorQualifiedRoofing: number;
   businessesCreated: number;
   businessesUpdated: number;
   snapshotsCreated: number;
@@ -62,6 +65,7 @@ type ImportReport = {
   reviewsCountPopulated: number;
   reviewsCountMissing: number;
   samplesAccepted: Record<string, unknown>[];
+  tierCounts: { tier1: number; tier2: number; tier3: number; unassigned: number };
 };
 
 async function connectClient(): Promise<Client> {
@@ -145,6 +149,8 @@ async function main() {
     placesReturned: places.length,
     businessesAccepted: 0,
     businessesRejected: 0,
+    sectorExcluded: 0,
+    sectorQualifiedRoofing: 0,
     businessesCreated: 0,
     businessesUpdated: 0,
     snapshotsCreated: 0,
@@ -156,6 +162,7 @@ async function main() {
     reviewsCountPopulated: 0,
     reviewsCountMissing: 0,
     samplesAccepted: [],
+    tierCounts: { tier1: 0, tier2: 0, tier3: 0, unassigned: 0 },
   };
 
   const seen = new Set<string>();
@@ -221,7 +228,23 @@ async function main() {
           reason: membership.reason,
         });
         console.warn(
-          `[reject] ${place.title} (${place.city ?? "no city"}): ${membership.reason}`,
+          `[reject:market] ${place.title} (${place.city ?? "no city"}): ${membership.reason}`,
+        );
+        await client.query(
+          `insert into public.collection_rejections (
+            market_id, google_place_id, name, city, primary_category,
+            rejection_stage, reason, source, scrape_run_id, raw
+          ) values ($1,$2,$3,$4,$5,'market',$6,'google_apify',$7,$8::jsonb)`,
+          [
+            market.id,
+            place.placeId,
+            place.title,
+            place.city ?? null,
+            place.categoryName ?? null,
+            membership.reason,
+            scrapeRunId,
+            JSON.stringify(place),
+          ],
         );
         continue;
       }
@@ -307,7 +330,7 @@ async function main() {
           report.snapshotsUpdated += 1;
         }
 
-        await applyQualification(client, businessId, place, market);
+        await applyQualification(client, businessId, place, report);
 
         if (report.samplesAccepted.length < 5) {
           report.samplesAccepted.push({
@@ -361,10 +384,13 @@ async function main() {
         marketId: report.marketId,
         placesReturned: report.placesReturned,
         businessesAccepted: report.businessesAccepted,
-        businessesRejected: report.businessesRejected,
+        businessesRejectedOutsideMarket: report.businessesRejected,
+        sectorExcludedKept: report.sectorExcluded,
+        sectorQualifiedRoofing: report.sectorQualifiedRoofing,
         businessesCreated: report.businessesCreated,
         businessesUpdated: report.businessesUpdated,
-        rejected: report.rejected,
+        tierCounts: report.tierCounts,
+        rejectedOutsideMarket: report.rejected,
         reportPath: outPath,
       },
       null,
@@ -377,7 +403,7 @@ async function applyQualification(
   client: Client,
   businessId: string,
   place: ApifyPlace,
-  _market: MarketDefinition,
+  report: ImportReport,
 ) {
   const reviewThreshold = Number(
     process.env.VEZZT_MIN_REVIEW_COUNT ?? DEFAULT_REVIEW_THRESHOLD,
@@ -393,6 +419,23 @@ async function applyQualification(
     Number.isFinite(reviewThreshold) ? reviewThreshold : DEFAULT_REVIEW_THRESHOLD,
   );
 
+  const isRoofingSector = qualification.targetSector === "roofing";
+  const monitoring = assignMonitoringTier(
+    place.reviewsCount ?? null,
+    isRoofingSector,
+  );
+
+  if (qualification.qualificationStatus === "excluded") {
+    report.sectorExcluded += 1;
+  } else if (isRoofingSector) {
+    report.sectorQualifiedRoofing += 1;
+  }
+
+  if (monitoring.monitoringTier === 1) report.tierCounts.tier1 += 1;
+  else if (monitoring.monitoringTier === 2) report.tierCounts.tier2 += 1;
+  else if (monitoring.monitoringTier === 3) report.tierCounts.tier3 += 1;
+  else report.tierCounts.unassigned += 1;
+
   await client.query(
     `update public.businesses set
       is_qualified = $2,
@@ -401,6 +444,10 @@ async function applyQualification(
       target_sector = $5,
       review_threshold_met = $6,
       qualification_status = $7,
+      monitoring_tier = $8,
+      monitoring_frequency = $9,
+      last_monitored_at = $10,
+      next_monitor_at = $11,
       updated_at = now()
     where id = $1`,
     [
@@ -411,6 +458,10 @@ async function applyQualification(
       qualification.targetSector,
       qualification.reviewThresholdMet,
       qualification.qualificationStatus,
+      monitoring.monitoringTier,
+      monitoring.monitoringFrequency,
+      isRoofingSector ? new Date() : null,
+      monitoring.nextMonitorAt,
     ],
   );
 }
