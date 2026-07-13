@@ -37,6 +37,12 @@ export function AppShell({ businesses }: AppShellProps) {
         </div>
         <div className="flex items-center gap-2">
           <a
+            href="/dashboard"
+            className="rounded-lg border border-vezzt-700 px-3 py-1.5 text-xs font-medium text-vezzt-200 transition hover:bg-vezzt-900"
+          >
+            Dashboard
+          </a>
+          <a
             href="/admin/qualification"
             className="rounded-lg border border-vezzt-700 px-3 py-1.5 text-xs font-medium text-vezzt-200 transition hover:bg-vezzt-900"
           >
