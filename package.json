@@ -17,10 +17,12 @@
     "import:apify": "tsx scripts/import-apify-places.ts",
     "clean:market": "tsx scripts/clean-out-of-market.ts",
     "setup:apify-weekly": "tsx scripts/setup-apify-weekly-schedule.ts",
+    "setup:apify-collection": "tsx scripts/setup-apify-collection-schedules.ts",
     "monitor:tier1": "tsx scripts/monitor-tier1.ts",
     "compute:velocity": "tsx scripts/compute-review-velocity.ts",
     "report:discovery": "tsx scripts/discovery-report.ts",
     "db:apply-monitoring": "tsx scripts/apply-sql.ts supabase/migrations/20250713180000_monitoring_tiers.sql",
+    "db:apply-monitoring-tiers": "tsx scripts/apply-sql.ts supabase/migrations/20250713190000_monitoring_two_tiers.sql",
     "verify:supabase": "tsx scripts/verify-supabase.ts"
   },
   "dependencies": {

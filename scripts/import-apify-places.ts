@@ -65,7 +65,7 @@ type ImportReport = {
   reviewsCountPopulated: number;
   reviewsCountMissing: number;
   samplesAccepted: Record<string, unknown>[];
-  tierCounts: { tier1: number; tier2: number; tier3: number; unassigned: number };
+  tierCounts: { tier1: number; tier2: number; unassigned: number };
 };
 
 async function connectClient(): Promise<Client> {
@@ -162,7 +162,7 @@ async function main() {
     reviewsCountPopulated: 0,
     reviewsCountMissing: 0,
     samplesAccepted: [],
-    tierCounts: { tier1: 0, tier2: 0, tier3: 0, unassigned: 0 },
+    tierCounts: { tier1: 0, tier2: 0, unassigned: 0 },
   };
 
   const seen = new Set<string>();
@@ -433,7 +433,6 @@ async function applyQualification(
 
   if (monitoring.monitoringTier === 1) report.tierCounts.tier1 += 1;
   else if (monitoring.monitoringTier === 2) report.tierCounts.tier2 += 1;
-  else if (monitoring.monitoringTier === 3) report.tierCounts.tier3 += 1;
   else report.tierCounts.unassigned += 1;
 
   await client.query(

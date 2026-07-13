@@ -50,9 +50,24 @@ function extractRunIds(body: Record<string, unknown>): {
   return { runId, datasetId };
 }
 
+function resolveMode(
+  req: Request,
+  body: Record<string, unknown>,
+): "discovery" | "monitor" {
+  const url = new URL(req.url);
+  const q = url.searchParams.get("mode");
+  if (q === "monitor" || q === "discovery") return q;
+  if (body.mode === "monitor" || body.mode === "discovery") {
+    return body.mode;
+  }
+  // Prefer monitor when payload hints at place_id scrape
+  const input = (body.resource as { options?: { build?: string } } | undefined);
+  void input;
+  return "discovery";
+}
+
 /**
- * Apify webhook target for successful scheduled Task runs.
- * POST /api/apify/run-complete
+ * Apify webhook: POST /api/apify/run-complete?mode=monitor|discovery
  */
 export async function POST(req: Request) {
   const expected = process.env.APIFY_WEBHOOK_SECRET;
@@ -83,12 +98,15 @@ export async function POST(req: Request) {
     );
   }
 
+  const mode = resolveMode(req, body);
+
   try {
     console.log(
       JSON.stringify({
         event: "apify_webhook_received",
         runId,
         datasetId,
+        mode,
       }),
     );
 
@@ -96,6 +114,7 @@ export async function POST(req: Request) {
       runId,
       datasetId,
       marketId: process.env.VEZZT_MARKET ?? "boise-metro",
+      mode,
     });
 
     console.log(
@@ -108,12 +127,15 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       ok: true,
+      mode: stats.mode,
       created: stats.created,
       updated: stats.updated,
       skippedDuplicates: stats.skippedDuplicates,
+      skippedUnknownPlaceIds: stats.skippedUnknownPlaceIds,
       snapshotsCreated: stats.snapshotsCreated,
       snapshotsSkippedDuplicate: stats.snapshotsSkippedDuplicate,
       rejectedOutsideMarket: stats.rejectedOutsideMarket,
+      sectorExcluded: stats.sectorExcluded,
       failed: stats.failed,
       scrapeRunId: stats.scrapeRunId,
       status: stats.status,

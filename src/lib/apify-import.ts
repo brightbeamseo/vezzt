@@ -30,6 +30,7 @@ export type ApifyPlace = {
 
 export type ApifyImportStats = {
   marketId: string;
+  mode: "discovery" | "monitor";
   apifyRunId: string | null;
   datasetId: string | null;
   scrapeRunId: string | null;
@@ -37,6 +38,7 @@ export type ApifyImportStats = {
   created: number;
   updated: number;
   skippedDuplicates: number;
+  skippedUnknownPlaceIds: number;
   snapshotsCreated: number;
   snapshotsSkippedDuplicate: number;
   rejectedOutsideMarket: number;
@@ -137,8 +139,10 @@ export async function fetchApifyDatasetItems(
 
 /**
  * Import Apify places into Supabase for a market.
- * Upserts by google_place_id. Snapshots use ON CONFLICT DO NOTHING
- * so the same business/date/source is never overwritten.
+ * Uniqueness is always enforced via google_place_id (UNIQUE + ON CONFLICT).
+ *
+ * discovery: upsert by placeId; qualify by primary category; log excludes
+ * monitor: update existing placeIds only — never insert new businesses
  */
 export async function importApifyPlaces(options: {
   places: ApifyPlace[];
@@ -146,9 +150,11 @@ export async function importApifyPlaces(options: {
   apifyRunId?: string | null;
   datasetId?: string | null;
   snapshotDate?: string; // YYYY-MM-DD; defaults to today (UTC)
+  mode?: "discovery" | "monitor";
   client?: Client;
 }): Promise<ApifyImportStats> {
   const market = getMarket(options.marketId ?? "boise-metro");
+  const mode = options.mode ?? "discovery";
   const snapshotDate =
     options.snapshotDate ?? new Date().toISOString().slice(0, 10);
   const ownsClient = !options.client;
@@ -156,6 +162,7 @@ export async function importApifyPlaces(options: {
 
   const stats: ApifyImportStats = {
     marketId: market.id,
+    mode,
     apifyRunId: options.apifyRunId ?? null,
     datasetId: options.datasetId ?? null,
     scrapeRunId: null,
@@ -163,6 +170,7 @@ export async function importApifyPlaces(options: {
     created: 0,
     updated: 0,
     skippedDuplicates: 0,
+    skippedUnknownPlaceIds: 0,
     snapshotsCreated: 0,
     snapshotsSkippedDuplicate: 0,
     rejectedOutsideMarket: 0,
@@ -186,11 +194,11 @@ export async function importApifyPlaces(options: {
       [
         "google_apify",
         options.apifyRunId
-          ? `apify-run:${options.apifyRunId}`
-          : `import:${market.id}`,
+          ? `${mode}:${options.apifyRunId}`
+          : `${mode}:${market.id}`,
         market.name,
         market.state,
-        "roofing",
+        mode === "monitor" ? "roofing_monitor" : "roofing_discovery",
         "running",
         options.places.length,
         market.id,
@@ -248,6 +256,12 @@ export async function importApifyPlaces(options: {
           [place.placeId],
         );
         const isUpdate = existing.rows.length > 0;
+
+        // Monitoring never creates new businesses — only known Place IDs.
+        if (mode === "monitor" && !isUpdate) {
+          stats.skippedUnknownPlaceIds += 1;
+          continue;
+        }
 
         const { rows } = await client.query<{ id: string }>(
           `insert into public.businesses (
@@ -340,6 +354,24 @@ export async function importApifyPlaces(options: {
         const isRoofing = qualification.targetSector === "roofing";
         if (qualification.qualificationStatus === "excluded") {
           stats.sectorExcluded += 1;
+          if (mode === "discovery") {
+            await client.query(
+              `insert into public.collection_rejections (
+                market_id, google_place_id, name, city, primary_category,
+                rejection_stage, reason, source, scrape_run_id, raw
+              ) values ($1,$2,$3,$4,$5,'sector',$6,'google_apify',$7,$8::jsonb)`,
+              [
+                market.id,
+                place.placeId,
+                place.title,
+                place.city ?? null,
+                place.categoryName ?? null,
+                qualification.qualificationReason,
+                stats.scrapeRunId,
+                JSON.stringify(place),
+              ],
+            );
+          }
         }
         const monitoring = assignMonitoringTier(
           place.reviewsCount ?? null,
@@ -356,8 +388,11 @@ export async function importApifyPlaces(options: {
             qualification_status = $7,
             monitoring_tier = $8,
             monitoring_frequency = $9,
-            last_monitored_at = coalesce(last_monitored_at, now()),
-            next_monitor_at = coalesce(next_monitor_at, $10),
+            last_monitored_at = case when $11::boolean then now() else coalesce(last_monitored_at, now()) end,
+            next_monitor_at = case
+              when $11::boolean then $10
+              else coalesce(next_monitor_at, $10)
+            end,
             updated_at = now()
           where id = $1`,
           [
@@ -371,6 +406,7 @@ export async function importApifyPlaces(options: {
             monitoring.monitoringTier,
             monitoring.monitoringFrequency,
             monitoring.nextMonitorAt,
+            mode === "monitor",
           ],
         );
       } catch (error) {
@@ -423,6 +459,7 @@ export async function importApifyRunToSupabase(options: {
   runId: string;
   datasetId?: string | null;
   marketId?: string;
+  mode?: "discovery" | "monitor";
 }): Promise<ApifyImportStats> {
   const run = await fetchApifyRun(options.runId);
   if (run.status !== "SUCCEEDED") {
@@ -444,5 +481,6 @@ export async function importApifyRunToSupabase(options: {
     apifyRunId: run.id,
     datasetId,
     snapshotDate: finishedDate,
+    mode: options.mode ?? "discovery",
   });
 }

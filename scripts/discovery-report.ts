@@ -95,11 +95,7 @@ async function main() {
     );
 
     const tier1 = roofing.rows.filter((r) => (r.review_count ?? 0) >= 100);
-    const tier2 = roofing.rows.filter((r) => {
-      const n = r.review_count ?? 0;
-      return n >= 25 && n < 100;
-    });
-    const tier3 = roofing.rows.filter((r) => (r.review_count ?? 0) < 25);
+    const tier2 = roofing.rows.filter((r) => (r.review_count ?? 0) < 100);
 
     // Cost model from last full discovery: usd per unique place (~place detail)
     const discoveryUsd = meta?.estimatedDiscoveryCostUsd ?? null;
@@ -130,17 +126,9 @@ async function main() {
           reviews: r.review_count,
         })),
       },
-      businessesWith25to99Reviews: {
+      businessesBelow100ReviewsMonthly: {
         count: tier2.length,
         businesses: tier2.map((r) => ({
-          name: r.name,
-          city: r.city,
-          reviews: r.review_count,
-        })),
-      },
-      businessesBelow25Reviews: {
-        count: tier3.length,
-        businesses: tier3.map((r) => ({
           name: r.name,
           city: r.city,
           reviews: r.review_count,
@@ -156,8 +144,12 @@ async function main() {
       },
       estimatedWeeklyTier1MonitoringCostUsd: Number(weeklyTier1Cost.toFixed(4)),
       notes: [
+        "Qualification: primary category must be exactly Roofing contractor.",
+        "Tier 1 (100+ reviews): weekly Place-ID monitoring via Vercel Cron.",
+        "Tier 2 (<100 reviews): monthly Place-ID monitoring via Vercel Cron.",
+        "Market discovery: Apify quarterly Task only — not weekly broad search.",
+        "Uniqueness: google_place_id / placeId.",
         "Velocity metrics require 2+ snapshots — not fabricated after a single discovery pass.",
-        "No scheduler enabled. Run scripts/monitor-tier1.ts manually after review.",
         "Vestimates not calculated.",
       ],
     };
