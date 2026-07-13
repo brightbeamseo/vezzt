@@ -91,7 +91,10 @@ export function BusinessMap({
               <p className="business-name-list text-vezzt-950">{business.name}</p>
               <p className="text-xs text-neutral-500">{business.category}</p>
               <p className="mt-1 text-sm font-bold text-vezzt-600">
-                Vestimate: {formatCurrency(business.vestimate)}
+                Vestimate:{" "}
+                {business.vestimate === null
+                  ? "Not calculated"
+                  : formatCurrency(business.vestimate)}
               </p>
             </div>
           </Popup>

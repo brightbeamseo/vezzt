@@ -1,5 +1,5 @@
 import type { Business } from "@/lib/types";
-import { formatCurrency } from "@/lib/format";
+import { formatNullable } from "@/lib/format";
 import {
   Building2,
   Calendar,
@@ -8,6 +8,7 @@ import {
   Ruler,
   Users,
 } from "lucide-react";
+import Link from "next/link";
 
 type BusinessPanelProps = {
   business: Business | null;
@@ -34,22 +35,22 @@ export function BusinessPanel({ business }: BusinessPanelProps) {
   const stats = [
     {
       label: "Annual Revenue",
-      value: formatCurrency(business.annualRevenue),
+      value: formatNullable(business.annualRevenue, { kind: "currency" }),
       icon: DollarSign,
     },
     {
       label: "Employees",
-      value: business.employees.toString(),
+      value: formatNullable(business.employees, { kind: "integer" }),
       icon: Users,
     },
     {
       label: "Founded",
-      value: business.founded.toString(),
+      value: formatNullable(business.founded, { kind: "integer" }),
       icon: Calendar,
     },
     {
       label: "Sq Ft",
-      value: business.sqft.toLocaleString(),
+      value: formatNullable(business.sqft, { kind: "integer" }),
       icon: Ruler,
     },
   ];
@@ -66,6 +67,13 @@ export function BusinessPanel({ business }: BusinessPanelProps) {
           <MapPin className="h-3.5 w-3.5 shrink-0" />
           {business.address}, {business.city}, {business.state}
         </p>
+        <p className="mt-2 text-xs capitalize text-neutral-500">
+          Status:{" "}
+          {(business.qualificationStatus ?? "unknown").replace("_", " ")}
+          {business.reviewCount !== null
+            ? ` · ${business.reviewCount} reviews`
+            : ""}
+        </p>
       </div>
 
       <div className="border-b border-vezzt-800 bg-vezzt-900 p-5">
@@ -73,11 +81,12 @@ export function BusinessPanel({ business }: BusinessPanelProps) {
           Vestimate
         </p>
         <p className="mt-1 text-2xl font-semibold tracking-tight text-white">
-          {formatCurrency(business.vestimate)}
+          {formatNullable(business.vestimate, { kind: "currency" })}
         </p>
         <p className="mt-1 text-xs text-vezzt-100/80">
-          Estimated business valuation based on revenue, location, and market
-          data.
+          {business.vestimate === null
+            ? "Not calculated yet — scoring formulas are still under development."
+            : "Estimated business valuation based on revenue, location, and market data."}
         </p>
       </div>
 
@@ -99,8 +108,14 @@ export function BusinessPanel({ business }: BusinessPanelProps) {
       <div className="flex-1 overflow-y-auto p-5">
         <h3 className="mb-2 text-sm font-semibold text-vezzt-950">About</h3>
         <p className="text-sm leading-relaxed text-neutral-600">
-          {business.description}
+          {business.description || "No description yet."}
         </p>
+        <Link
+          href={`/businesses/${business.id}`}
+          className="mt-4 inline-block text-sm font-medium text-vezzt-600 hover:underline"
+        >
+          Open full detail →
+        </Link>
       </div>
     </div>
   );

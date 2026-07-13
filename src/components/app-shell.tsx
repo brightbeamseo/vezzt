@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { signOut } from "next-auth/react";
 import { Building2, LogOut, Search } from "lucide-react";
-import { formatCurrency } from "@/lib/format";
+import { formatNullable } from "@/lib/format";
 import type { Business } from "@/lib/types";
 import { BusinessMapWrapper } from "@/components/business-map-wrapper";
 import { BusinessPanel } from "@/components/business-panel";
@@ -20,7 +20,10 @@ export function AppShell({ businesses }: AppShellProps) {
     (b) =>
       b.name.toLowerCase().includes(search.toLowerCase()) ||
       b.category.toLowerCase().includes(search.toLowerCase()) ||
-      b.city.toLowerCase().includes(search.toLowerCase()),
+      b.city.toLowerCase().includes(search.toLowerCase()) ||
+      (b.qualificationStatus ?? "")
+        .toLowerCase()
+        .includes(search.toLowerCase()),
   );
 
   return (
@@ -31,8 +34,12 @@ export function AppShell({ businesses }: AppShellProps) {
             <Building2 className="h-4 w-4" />
           </div>
           <div>
-            <p className="text-sm font-semibold tracking-tight text-white">Vezzt</p>
-            <p className="text-xs text-vezzt-300">Because your business has value.</p>
+            <p className="text-sm font-semibold tracking-tight text-white">
+              Vezzt
+            </p>
+            <p className="text-xs text-vezzt-300">
+              Because your business has value.
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -73,7 +80,7 @@ export function AppShell({ businesses }: AppShellProps) {
             </div>
             <p className="mt-2 text-xs text-neutral-500">
               {filtered.length} business{filtered.length !== 1 ? "es" : ""}{" "}
-              listed
+              listed (all statuses)
             </p>
           </div>
 
@@ -94,8 +101,18 @@ export function AppShell({ businesses }: AppShellProps) {
                   <p className="text-xs text-neutral-500">
                     {business.category} · {business.city}, {business.state}
                   </p>
+                  <p className="mt-1 text-[11px] capitalize text-neutral-400">
+                    {(business.qualificationStatus ?? "unknown").replace(
+                      "_",
+                      " ",
+                    )}
+                    {business.reviewCount !== null
+                      ? ` · ${business.reviewCount} reviews`
+                      : ""}
+                  </p>
                   <p className="mt-1 text-xs font-bold text-vezzt-600">
-                    Vestimate {formatCurrency(business.vestimate)}
+                    Vestimate{" "}
+                    {formatNullable(business.vestimate, { kind: "currency" })}
                   </p>
                 </button>
               </li>

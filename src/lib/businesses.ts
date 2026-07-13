@@ -18,6 +18,8 @@ export const businesses: Business[] = [
     sqft: 1800,
     description:
       "Specialty coffee roastery and café with strong local following and wholesale accounts.",
+    qualificationStatus: "qualified",
+    reviewCount: null,
   },
   {
     id: "2",
@@ -35,6 +37,8 @@ export const businesses: Business[] = [
     sqft: 5200,
     description:
       "Full-service auto repair and tire shop with loyal fleet contracts and high repeat traffic.",
+    qualificationStatus: "qualified",
+    reviewCount: null,
   },
   {
     id: "3",
@@ -52,6 +56,8 @@ export const businesses: Business[] = [
     sqft: 2400,
     description:
       "Curated home décor boutique in a high-foot-traffic historic district location.",
+    qualificationStatus: "qualified",
+    reviewCount: null,
   },
   {
     id: "4",
@@ -69,6 +75,8 @@ export const businesses: Business[] = [
     sqft: 3200,
     description:
       "Boutique fitness studio with membership-based revenue and strong class retention.",
+    qualificationStatus: "qualified",
+    reviewCount: null,
   },
   {
     id: "5",
@@ -86,6 +94,8 @@ export const businesses: Business[] = [
     sqft: 4100,
     description:
       "Established dental practice with insured patient base and modern equipment.",
+    qualificationStatus: "qualified",
+    reviewCount: null,
   },
   {
     id: "6",
@@ -103,6 +113,8 @@ export const businesses: Business[] = [
     sqft: 3600,
     description:
       "Pet supply and grooming retailer serving year-round residents and tourists.",
+    qualificationStatus: "qualified",
+    reviewCount: null,
   },
 ];
 
