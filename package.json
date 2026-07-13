@@ -11,7 +11,11 @@
     "db:apply-policies": "tsx scripts/apply-sql.ts supabase/migrations/20250630130100_anon_read_policies.sql",
     "db:seed-sql": "tsx scripts/apply-sql.ts supabase/migrations/20250630130100_anon_read_policies.sql supabase/migrations/20250630130200_seed_demo_businesses.sql",
     "db:apply-qualification": "tsx scripts/apply-sql.ts supabase/migrations/20250713150000_business_qualification_fields.sql",
+    "db:apply-market": "tsx scripts/apply-sql.ts supabase/migrations/20250713170000_market_id.sql",
     "qualify:businesses": "tsx scripts/qualify-businesses.ts",
+    "scrape:market": "tsx scripts/scrape-market-apify.ts",
+    "import:apify": "tsx scripts/import-apify-places.ts",
+    "clean:market": "tsx scripts/clean-out-of-market.ts",
     "verify:supabase": "tsx scripts/verify-supabase.ts"
   },
   "dependencies": {

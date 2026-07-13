@@ -1,14 +1,17 @@
 /**
- * Import Apify Google Maps Scraper dataset JSON into Supabase.
- * Usage: tsx scripts/import-apify-places.ts path/to/dataset.json
+ * Import Apify Google Maps dataset into Supabase for exactly one market.
+ * Usage:
+ *   tsx scripts/import-apify-places.ts <dataset.json> --market=boise-metro
  */
-import { readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
 import { config } from "dotenv";
 import { Client } from "pg";
 import {
   DEFAULT_REVIEW_THRESHOLD,
   qualifyRoofingBusiness,
 } from "../src/lib/qualification";
+import { getMarket, isInMarket, type MarketDefinition } from "../src/lib/markets";
 
 config({ path: ".env.local" });
 
@@ -31,20 +34,34 @@ type ApifyPlace = {
   location?: { lat?: number | null; lng?: number | null } | null;
   permanentlyClosed?: boolean | null;
   temporarilyClosed?: boolean | null;
+  searchString?: string | null;
+  locationQuery?: string | null;
+};
+
+type Rejection = {
+  placeId?: string | null;
+  title?: string | null;
+  city?: string | null;
+  reason: string;
 };
 
 type ImportReport = {
+  marketId: string;
+  marketName: string;
   placesReturned: number;
+  businessesAccepted: number;
+  businessesRejected: number;
   businessesCreated: number;
   businessesUpdated: number;
   snapshotsCreated: number;
   snapshotsUpdated: number;
   duplicatesSkipped: number;
+  rejected: Rejection[];
   failedRecords: { placeId?: string | null; title?: string | null; error: string }[];
   missingFields: Record<string, number>;
   reviewsCountPopulated: number;
   reviewsCountMissing: number;
-  samples: Record<string, unknown>[];
+  samplesAccepted: Record<string, unknown>[];
 };
 
 async function connectClient(): Promise<Client> {
@@ -83,6 +100,17 @@ async function connectClient(): Promise<Client> {
   throw lastError instanceof Error ? lastError : new Error("DB connect failed");
 }
 
+function parseArgs(argv: string[]) {
+  const path = argv.find((a) => !a.startsWith("--"));
+  const marketId = argv.find((a) => a.startsWith("--market="))?.split("=")[1];
+  if (!path || !marketId) {
+    throw new Error(
+      "Usage: tsx scripts/import-apify-places.ts <dataset.json> --market=boise-metro",
+    );
+  }
+  return { path, market: getMarket(marketId) };
+}
+
 function trackMissing(place: ApifyPlace, missing: Record<string, number>) {
   const checks: [string, unknown][] = [
     ["title", place.title],
@@ -108,24 +136,26 @@ function trackMissing(place: ApifyPlace, missing: Record<string, number>) {
 }
 
 async function main() {
-  const path = process.argv[2];
-  if (!path) {
-    throw new Error("Usage: tsx scripts/import-apify-places.ts <dataset.json>");
-  }
-
+  const { path, market } = parseArgs(process.argv.slice(2));
   const places = JSON.parse(readFileSync(path, "utf8")) as ApifyPlace[];
+
   const report: ImportReport = {
+    marketId: market.id,
+    marketName: market.name,
     placesReturned: places.length,
+    businessesAccepted: 0,
+    businessesRejected: 0,
     businessesCreated: 0,
     businessesUpdated: 0,
     snapshotsCreated: 0,
     snapshotsUpdated: 0,
     duplicatesSkipped: 0,
+    rejected: [],
     failedRecords: [],
     missingFields: {},
     reviewsCountPopulated: 0,
     reviewsCountMissing: 0,
-    samples: [],
+    samplesAccepted: [],
   };
 
   const seen = new Set<string>();
@@ -136,17 +166,18 @@ async function main() {
 
     const scrapeRun = await client.query<{ id: string }>(
       `insert into public.scrape_runs (
-        source, query, city, state, category, status, records_found, started_at
-      ) values ($1, $2, $3, $4, $5, $6, $7, now())
+        source, query, city, state, category, status, records_found, started_at, market_id
+      ) values ($1, $2, $3, $4, $5, $6, $7, now(), $8)
       returning id`,
       [
         "google_apify",
-        "roofing contractor",
-        "Boise",
-        "ID",
+        `roofing contractor @ ${market.id}`,
+        market.name,
+        market.state,
         "roofing contractor",
         "running",
         places.length,
+        market.id,
       ],
     );
     const scrapeRunId = scrapeRun.rows[0].id;
@@ -175,7 +206,28 @@ async function main() {
       }
       seen.add(place.placeId);
 
+      const membership = isInMarket(market, {
+        city: place.city,
+        latitude: place.location?.lat ?? null,
+        longitude: place.location?.lng ?? null,
+      });
+
+      if (!membership.ok) {
+        report.businessesRejected += 1;
+        report.rejected.push({
+          placeId: place.placeId,
+          title: place.title,
+          city: place.city ?? null,
+          reason: membership.reason,
+        });
+        console.warn(
+          `[reject] ${place.title} (${place.city ?? "no city"}): ${membership.reason}`,
+        );
+        continue;
+      }
+
       try {
+        const acceptedCity = membership.city;
         const existing = await client.query<{ id: string }>(
           `select id from public.businesses where google_place_id = $1`,
           [place.placeId],
@@ -186,10 +238,10 @@ async function main() {
           `insert into public.businesses (
             google_place_id, name, primary_category, secondary_categories,
             website_url, phone, address, city, state, postal_code, country,
-            latitude, longitude, google_maps_url, is_active, last_seen_at
+            latitude, longitude, google_maps_url, is_active, last_seen_at, market_id
           ) values (
             $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
-            $15, now()
+            $15, now(), $16
           )
           on conflict (google_place_id) do update set
             name = excluded.name,
@@ -206,6 +258,7 @@ async function main() {
             longitude = excluded.longitude,
             google_maps_url = excluded.google_maps_url,
             is_active = excluded.is_active,
+            market_id = excluded.market_id,
             last_seen_at = now(),
             updated_at = now()
           returning id`,
@@ -217,7 +270,7 @@ async function main() {
             place.website ?? null,
             place.phone ?? null,
             place.address ?? place.street ?? null,
-            place.city ?? null,
+            acceptedCity,
             place.state ?? null,
             place.postalCode ?? null,
             place.countryCode ?? "US",
@@ -225,10 +278,12 @@ async function main() {
             place.location?.lng ?? null,
             place.url ?? null,
             !(place.permanentlyClosed || place.temporarilyClosed),
+            market.id,
           ],
         );
 
         const businessId = rows[0].id;
+        report.businessesAccepted += 1;
         if (isUpdate) {
           report.businessesUpdated += 1;
         } else {
@@ -252,63 +307,15 @@ async function main() {
           report.snapshotsUpdated += 1;
         }
 
-        const reviewThreshold = Number(
-          process.env.VEZZT_MIN_REVIEW_COUNT ?? DEFAULT_REVIEW_THRESHOLD,
-        );
-        const qualification = qualifyRoofingBusiness(
-          {
-            name: place.title,
-            primaryCategory: place.categoryName ?? null,
-            secondaryCategories: place.categories?.length
-              ? place.categories
-              : null,
-            websiteUrl: place.website ?? null,
-            reviewCount: place.reviewsCount ?? null,
-          },
-          Number.isFinite(reviewThreshold)
-            ? reviewThreshold
-            : DEFAULT_REVIEW_THRESHOLD,
-        );
+        await applyQualification(client, businessId, place, market);
 
-        await client.query(
-          `update public.businesses set
-            is_qualified = $2,
-            qualification_reason = $3,
-            qualification_confidence = $4,
-            target_sector = $5,
-            review_threshold_met = $6,
-            qualification_status = $7,
-            updated_at = now()
-          where id = $1`,
-          [
-            businessId,
-            qualification.isQualified,
-            qualification.qualificationReason,
-            qualification.qualificationConfidence,
-            qualification.targetSector,
-            qualification.reviewThresholdMet,
-            qualification.qualificationStatus,
-          ],
-        );
-
-        if (report.samples.length < 3) {
-          report.samples.push({
+        if (report.samplesAccepted.length < 5) {
+          report.samplesAccepted.push({
             id: businessId,
-            google_place_id: place.placeId,
             name: place.title,
+            city: acceptedCity,
             primary_category: place.categoryName,
-            address: place.address,
-            city: place.city,
-            state: place.state,
-            postal_code: place.postalCode,
-            phone: place.phone,
-            website_url: place.website,
-            latitude: place.location?.lat,
-            longitude: place.location?.lng,
-            google_maps_url: place.url,
             review_count: place.reviewsCount,
-            average_rating: place.totalScore,
-            source: "google_apify",
           });
         }
       } catch (error) {
@@ -346,9 +353,66 @@ async function main() {
   }
 
   const outPath = path.replace(/\.json$/i, "-import-report.json");
+  mkdirSync(dirname(outPath), { recursive: true });
   writeFileSync(outPath, JSON.stringify(report, null, 2));
-  console.log(JSON.stringify(report, null, 2));
-  console.log(`Report written to ${outPath}`);
+  console.log(
+    JSON.stringify(
+      {
+        marketId: report.marketId,
+        placesReturned: report.placesReturned,
+        businessesAccepted: report.businessesAccepted,
+        businessesRejected: report.businessesRejected,
+        businessesCreated: report.businessesCreated,
+        businessesUpdated: report.businessesUpdated,
+        rejected: report.rejected,
+        reportPath: outPath,
+      },
+      null,
+      2,
+    ),
+  );
+}
+
+async function applyQualification(
+  client: Client,
+  businessId: string,
+  place: ApifyPlace,
+  _market: MarketDefinition,
+) {
+  const reviewThreshold = Number(
+    process.env.VEZZT_MIN_REVIEW_COUNT ?? DEFAULT_REVIEW_THRESHOLD,
+  );
+  const qualification = qualifyRoofingBusiness(
+    {
+      name: place.title!,
+      primaryCategory: place.categoryName ?? null,
+      secondaryCategories: place.categories?.length ? place.categories : null,
+      websiteUrl: place.website ?? null,
+      reviewCount: place.reviewsCount ?? null,
+    },
+    Number.isFinite(reviewThreshold) ? reviewThreshold : DEFAULT_REVIEW_THRESHOLD,
+  );
+
+  await client.query(
+    `update public.businesses set
+      is_qualified = $2,
+      qualification_reason = $3,
+      qualification_confidence = $4,
+      target_sector = $5,
+      review_threshold_met = $6,
+      qualification_status = $7,
+      updated_at = now()
+    where id = $1`,
+    [
+      businessId,
+      qualification.isQualified,
+      qualification.qualificationReason,
+      qualification.qualificationConfidence,
+      qualification.targetSector,
+      qualification.reviewThresholdMet,
+      qualification.qualificationStatus,
+    ],
+  );
 }
 
 main().catch((error) => {
