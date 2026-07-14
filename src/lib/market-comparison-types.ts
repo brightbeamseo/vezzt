@@ -1,0 +1,397 @@
+import type { CompanyScale, OwnershipModel } from "@/lib/companies";
+import type { QualificationStatus } from "@/lib/qualification";
+
+export type MarketComparisonFilters = {
+  marketId: string;
+  sector: string;
+  city: string | "all";
+  minReviews: number;
+  companyScale: CompanyScale | "all";
+  ownershipModel: OwnershipModel | "all";
+  qualificationStatus: QualificationStatus | "all";
+  hasAhrefs: boolean;
+  hasGeogrid: boolean;
+  hasMultipleReviewSnapshots: boolean;
+  missingDataOnly: boolean;
+};
+
+export const DEFAULT_MARKET_COMPARISON_FILTERS: MarketComparisonFilters = {
+  marketId: "boise-metro",
+  sector: "roofing",
+  city: "all",
+  minReviews: 100,
+  companyScale: "all",
+  ownershipModel: "all",
+  qualificationStatus: "qualified",
+  hasAhrefs: false,
+  hasGeogrid: false,
+  hasMultipleReviewSnapshots: false,
+  missingDataOnly: false,
+};
+
+export type MarketComparisonColumnId =
+  | "businessName"
+  | "city"
+  | "companyName"
+  | "companyScale"
+  | "ownershipModel"
+  | "website"
+  | "analysisTarget"
+  | "analysisMode"
+  | "reviewCount"
+  | "rating"
+  | "reviewSnapshotDate"
+  | "reviewsGainedSincePrior"
+  | "weeklyReviewVelocity"
+  | "estimatedMonthlyReviewVelocity"
+  | "localOrganicTraffic"
+  | "localOrganicKeywords"
+  | "localKeywordsTop3"
+  | "localReferringDomains"
+  | "localBacklinks"
+  | "localTrafficValue"
+  | "parentDomainRating"
+  | "parentOrganicTraffic"
+  | "parentOrganicKeywords"
+  | "parentReferringDomains"
+  | "shareOfLocalVoice"
+  | "averageGridRank"
+  | "averageTotalGridRank"
+  | "top3Coverage"
+  | "top10Coverage"
+  | "geogridScanDate"
+  | "dataCompleteness"
+  | "missingFields"
+  | "latestDataRefresh"
+  | "manualReviewFlag"
+  | "businessStrength"
+  | "growthScore"
+  | "marketStrength"
+  | "vestimate"
+  | "confidenceScore";
+
+export type MarketComparisonColumnDef = {
+  id: MarketComparisonColumnId;
+  label: string;
+  group: string;
+  numeric: boolean;
+  defaultVisible: boolean;
+  /** Show percentile bar for this field when present. */
+  percentileOf?:
+    | "reviewCount"
+    | "localOrganicTraffic"
+    | "shareOfLocalVoice"
+    | "localReferringDomains";
+};
+
+export const MARKET_COMPARISON_COLUMNS: MarketComparisonColumnDef[] = [
+  { id: "businessName", label: "Business", group: "Identity", numeric: false, defaultVisible: true },
+  { id: "city", label: "City", group: "Identity", numeric: false, defaultVisible: true },
+  { id: "companyName", label: "Company", group: "Identity", numeric: false, defaultVisible: false },
+  { id: "companyScale", label: "Company scale", group: "Identity", numeric: false, defaultVisible: false },
+  { id: "ownershipModel", label: "Ownership", group: "Identity", numeric: false, defaultVisible: false },
+  { id: "website", label: "Website", group: "Identity", numeric: false, defaultVisible: false },
+  { id: "analysisTarget", label: "Analysis target", group: "Identity", numeric: false, defaultVisible: false },
+  { id: "analysisMode", label: "Analysis mode", group: "Identity", numeric: false, defaultVisible: false },
+  {
+    id: "reviewCount",
+    label: "Reviews",
+    group: "Google",
+    numeric: true,
+    defaultVisible: true,
+    percentileOf: "reviewCount",
+  },
+  { id: "rating", label: "Rating", group: "Google", numeric: true, defaultVisible: true },
+  { id: "reviewSnapshotDate", label: "Review snapshot", group: "Google", numeric: false, defaultVisible: false },
+  {
+    id: "reviewsGainedSincePrior",
+    label: "Reviews gained",
+    group: "Google",
+    numeric: true,
+    defaultVisible: false,
+  },
+  {
+    id: "weeklyReviewVelocity",
+    label: "Review velocity",
+    group: "Google",
+    numeric: true,
+    defaultVisible: true,
+  },
+  {
+    id: "estimatedMonthlyReviewVelocity",
+    label: "Est. monthly velocity",
+    group: "Google",
+    numeric: true,
+    defaultVisible: false,
+  },
+  {
+    id: "localOrganicTraffic",
+    label: "Local organic traffic",
+    group: "Ahrefs local",
+    numeric: true,
+    defaultVisible: true,
+    percentileOf: "localOrganicTraffic",
+  },
+  {
+    id: "localOrganicKeywords",
+    label: "Local organic keywords",
+    group: "Ahrefs local",
+    numeric: true,
+    defaultVisible: true,
+  },
+  {
+    id: "localKeywordsTop3",
+    label: "Local keywords 1–3",
+    group: "Ahrefs local",
+    numeric: true,
+    defaultVisible: false,
+  },
+  {
+    id: "localReferringDomains",
+    label: "Referring domains",
+    group: "Ahrefs local",
+    numeric: true,
+    defaultVisible: true,
+    percentileOf: "localReferringDomains",
+  },
+  {
+    id: "localBacklinks",
+    label: "Local backlinks",
+    group: "Ahrefs local",
+    numeric: true,
+    defaultVisible: false,
+  },
+  {
+    id: "localTrafficValue",
+    label: "Local traffic value",
+    group: "Ahrefs local",
+    numeric: true,
+    defaultVisible: false,
+  },
+  {
+    id: "parentDomainRating",
+    label: "Parent DR",
+    group: "Ahrefs parent",
+    numeric: true,
+    defaultVisible: true,
+  },
+  {
+    id: "parentOrganicTraffic",
+    label: "Parent organic traffic",
+    group: "Ahrefs parent",
+    numeric: true,
+    defaultVisible: false,
+  },
+  {
+    id: "parentOrganicKeywords",
+    label: "Parent organic keywords",
+    group: "Ahrefs parent",
+    numeric: true,
+    defaultVisible: false,
+  },
+  {
+    id: "parentReferringDomains",
+    label: "Parent referring domains",
+    group: "Ahrefs parent",
+    numeric: true,
+    defaultVisible: false,
+  },
+  {
+    id: "shareOfLocalVoice",
+    label: "SoLV",
+    group: "GeoGrid",
+    numeric: true,
+    defaultVisible: true,
+    percentileOf: "shareOfLocalVoice",
+  },
+  {
+    id: "averageGridRank",
+    label: "AGR",
+    group: "GeoGrid",
+    numeric: true,
+    defaultVisible: true,
+  },
+  {
+    id: "averageTotalGridRank",
+    label: "ATGR",
+    group: "GeoGrid",
+    numeric: true,
+    defaultVisible: false,
+  },
+  {
+    id: "top3Coverage",
+    label: "Top-3 coverage",
+    group: "GeoGrid",
+    numeric: true,
+    defaultVisible: true,
+  },
+  {
+    id: "top10Coverage",
+    label: "Top-10 coverage",
+    group: "GeoGrid",
+    numeric: true,
+    defaultVisible: false,
+  },
+  {
+    id: "geogridScanDate",
+    label: "GeoGrid scan date",
+    group: "GeoGrid",
+    numeric: false,
+    defaultVisible: false,
+  },
+  {
+    id: "dataCompleteness",
+    label: "Data completeness",
+    group: "Quality",
+    numeric: true,
+    defaultVisible: true,
+  },
+  {
+    id: "missingFields",
+    label: "Missing fields",
+    group: "Quality",
+    numeric: false,
+    defaultVisible: false,
+  },
+  {
+    id: "latestDataRefresh",
+    label: "Latest refresh",
+    group: "Quality",
+    numeric: false,
+    defaultVisible: false,
+  },
+  {
+    id: "manualReviewFlag",
+    label: "Manual review",
+    group: "Quality",
+    numeric: false,
+    defaultVisible: false,
+  },
+  {
+    id: "businessStrength",
+    label: "Business Strength",
+    group: "Future",
+    numeric: false,
+    defaultVisible: false,
+  },
+  {
+    id: "growthScore",
+    label: "Growth Score",
+    group: "Future",
+    numeric: false,
+    defaultVisible: false,
+  },
+  {
+    id: "marketStrength",
+    label: "Market Strength",
+    group: "Future",
+    numeric: false,
+    defaultVisible: false,
+  },
+  {
+    id: "vestimate",
+    label: "Vestimate",
+    group: "Future",
+    numeric: false,
+    defaultVisible: false,
+  },
+  {
+    id: "confidenceScore",
+    label: "Confidence Score",
+    group: "Future",
+    numeric: false,
+    defaultVisible: false,
+  },
+];
+
+export const DEFAULT_VISIBLE_COLUMNS: MarketComparisonColumnId[] =
+  MARKET_COMPARISON_COLUMNS.filter((c) => c.defaultVisible).map((c) => c.id);
+
+export const FUTURE_METRIC_LABEL = "Not calculated";
+
+export type MarketComparisonRow = {
+  businessId: string;
+  businessName: string;
+  city: string | null;
+  state: string | null;
+  websiteUrl: string | null;
+  googleMapsUrl: string | null;
+  primaryCategory: string | null;
+  targetSector: string | null;
+  marketId: string | null;
+  qualificationStatus: string;
+  isQualified: boolean;
+  analysisTarget: string | null;
+  analysisMode: string | null;
+  companyId: string | null;
+  companyName: string | null;
+  companyScale: string | null;
+  ownershipModel: string | null;
+  companyLocationCount: number | null;
+  companyRootDomain: string | null;
+  classificationIsManual: boolean;
+  reviewCount: number | null;
+  rating: number | null;
+  reviewSnapshotDate: string | null;
+  reviewsGainedSincePrior: number | null;
+  weeklyReviewVelocity: number | null;
+  estimatedMonthlyReviewVelocity: number | null;
+  reviewSnapshotCount: number;
+  localOrganicTraffic: number | null;
+  localOrganicKeywords: number | null;
+  localKeywordsTop3: number | null;
+  localReferringDomains: number | null;
+  localBacklinks: number | null;
+  localTrafficValue: number | null;
+  localAnalysisTarget: string | null;
+  parentDomainRating: number | null;
+  parentOrganicTraffic: number | null;
+  parentOrganicKeywords: number | null;
+  parentReferringDomains: number | null;
+  parentDomain: string | null;
+  parentAnalysisTarget: string | null;
+  localAhrefsFromParent: boolean;
+  shareOfLocalVoice: number | null;
+  averageGridRank: number | null;
+  averageTotalGridRank: number | null;
+  top3Coverage: number | null;
+  top10Coverage: number | null;
+  foundInTop3Count: number | null;
+  foundInTop10Count: number | null;
+  totalGridPoints: number | null;
+  geogridScanDate: string | null;
+  providerScanId: string | null;
+  dataCompleteness: number;
+  missingFields: string[];
+  latestDataRefresh: string | null;
+  hasAhrefs: boolean;
+  hasGeogrid: boolean;
+  hasMultipleReviewSnapshots: boolean;
+  percentiles: {
+    reviewCount: number | null;
+    localOrganicTraffic: number | null;
+    shareOfLocalVoice: number | null;
+    localReferringDomains: number | null;
+  };
+  ahrefsUrl: string | null;
+  geogridUrl: string | null;
+};
+
+export type MarketComparisonSummary = {
+  businessCount: number;
+  withAhrefs: number;
+  withGeogrid: number;
+  withMultipleReviewSnapshots: number;
+  medianReviews: number | null;
+  medianOrganicTraffic: number | null;
+  medianSolv: number | null;
+  averageDataCompleteness: number | null;
+};
+
+export type MarketComparisonPayload = {
+  marketId: string;
+  sector: string;
+  rows: MarketComparisonRow[];
+  cities: string[];
+  duplicateBusinessIds: string[];
+};

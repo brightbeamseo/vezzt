@@ -39,6 +39,7 @@
     "backfill:companies": "tsx scripts/backfill-companies.ts",
     "reclassify:companies": "tsx scripts/reclassify-companies.ts",
     "db:apply-company-scale": "tsx scripts/apply-sql.ts supabase/migrations/20250714230000_company_scale_ownership.sql",
+    "db:apply-current-signals": "tsx scripts/apply-sql.ts supabase/migrations/20250714240000_business_current_signals.sql",
     "verify:supabase": "tsx scripts/verify-supabase.ts"
   },
   "dependencies": {
