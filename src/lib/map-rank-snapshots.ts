@@ -268,6 +268,10 @@ export async function markMapRankSnapshotFailed(input: {
 /**
  * Start one LBM GeoGrid: create remote scan + pending DB row, then return.
  * Does not poll. Use checkLbmGeogridOnce() later.
+ *
+ * Idempotent: if a pending/processing or finished snapshot already exists for the
+ * same business + search term + grid + spacing, returns that scan without creating
+ * a new LBM job (avoids duplicate credit spend).
  */
 export async function startMapRankScan(input: {
   businessId: string;
@@ -279,13 +283,67 @@ export async function startMapRankScan(input: {
   gridSize: number;
   spacingValue: number;
   spacingUnit: "miles" | "meters";
+  /** Force a new LBM scan even if one already exists for these settings. */
+  force?: boolean;
 }): Promise<{
   creditsEstimated: number;
   providerScanId: string;
   snapshotId: string;
-  status: "pending";
+  status: "pending" | "finished" | "processing";
+  created: boolean;
+  reused: boolean;
 }> {
   const creditsEstimated = input.gridSize * input.gridSize;
+
+  if (!input.force) {
+    const db = await connectAdminPg();
+    try {
+      const { rows } = await db.query<{
+        id: string;
+        provider_scan_id: string;
+        status: string | null;
+      }>(
+        `select id, provider_scan_id, status
+         from public.map_rank_snapshots
+         where business_id = $1
+           and provider = 'local_brand_manager'
+           and search_term = $2
+           and grid_size = $3
+           and spacing_value = $4
+           and coalesce(spacing_unit, 'miles') = $5
+           and status in ('pending', 'processing', 'finished')
+         order by
+           case status
+             when 'pending' then 0
+             when 'processing' then 1
+             when 'finished' then 2
+             else 3
+           end,
+           coalesce(scanned_at, created_at) desc
+         limit 1`,
+        [
+          input.businessId,
+          input.searchTerm,
+          input.gridSize,
+          input.spacingValue,
+          input.spacingUnit,
+        ],
+      );
+
+      if (rows[0]) {
+        return {
+          creditsEstimated: rows[0].status === "finished" ? 0 : creditsEstimated,
+          providerScanId: rows[0].provider_scan_id,
+          snapshotId: rows[0].id,
+          status: (rows[0].status as "pending" | "processing" | "finished") ?? "pending",
+          created: false,
+          reused: true,
+        };
+      }
+    } finally {
+      await db.end();
+    }
+  }
 
   const created = await createLbmGeogrid({
     businessName: input.businessName,
@@ -314,6 +372,8 @@ export async function startMapRankScan(input: {
     providerScanId: created.id,
     snapshotId,
     status: "pending",
+    created: true,
+    reused: false,
   };
 }
 
@@ -426,7 +486,9 @@ export async function runAndStoreMapRankScan(input: {
   creditsEstimated: number;
   providerScanId: string;
   snapshotId: string;
-  status: "pending";
+  status: "pending" | "finished" | "processing";
+  created: boolean;
+  reused: boolean;
 }> {
   return startMapRankScan(input);
 }

@@ -478,3 +478,205 @@ export async function getDashboardBusinessById(
 }
 
 export { SCORE_MODEL_STATUS };
+
+export type BoiseRoofingComparisonRow = {
+  id: string;
+  name: string;
+  city: string | null;
+  reviewCount: number | null;
+  averageRating: number | null;
+  domainRating: number | null;
+  organicTraffic: number | null;
+  organicKeywords: number | null;
+  referringDomains: number | null;
+  shareOfLocalVoice: number | null;
+  averageGridRank: number | null;
+  foundInTop3Count: number | null;
+  totalGridPoints: number | null;
+  mapRankStatus: string | null;
+  dataCompleteness: number;
+  missingFields: string[];
+};
+
+/**
+ * Qualified Boise Metro roofers with 100+ reviews — comparison cohort.
+ */
+export async function getBoiseRoofingComparison(): Promise<
+  BoiseRoofingComparisonRow[]
+> {
+  const cookieStore = await cookies();
+  const supabase = createClient(cookieStore);
+
+  const { data, error } = await supabase
+    .from("businesses")
+    .select(
+      `
+      id,
+      name,
+      city,
+      qualification_status,
+      primary_category,
+      review_snapshots (
+        snapshot_date,
+        review_count,
+        average_rating
+      )
+    `,
+    )
+    .eq("qualification_status", "qualified")
+    .eq("primary_category", "Roofing contractor");
+
+  if (error) {
+    throw new Error(`Failed to load Boise comparison businesses: ${error.message}`);
+  }
+
+  const { MARKETS, normalizeCityName } = await import("@/lib/markets");
+  const allowed = new Set(
+    MARKETS["boise-metro"].cities.map((c) => normalizeCityName(c)),
+  );
+
+  const base = (data ?? [])
+    .map((row) => {
+      const snapshots = asArray(
+        row.review_snapshots as
+          | {
+              snapshot_date: string;
+              review_count: number | null;
+              average_rating: number | string | null;
+            }[]
+          | null,
+      );
+      const latest = pickLatestSnapshot(
+        snapshots.map((s) => ({
+          id: s.snapshot_date,
+          snapshot_date: s.snapshot_date,
+          review_count: s.review_count,
+          average_rating: s.average_rating,
+          source: "google_apify",
+        })),
+      );
+      return {
+        id: row.id as string,
+        name: row.name as string,
+        city: (row.city as string | null) ?? null,
+        reviewCount: latest?.review_count ?? null,
+        averageRating: latest ? toNumber(latest.average_rating) : null,
+      };
+    })
+    .filter(
+      (b) =>
+        b.city &&
+        allowed.has(normalizeCityName(b.city)) &&
+        (b.reviewCount ?? 0) >= 100,
+    );
+
+  const rows: BoiseRoofingComparisonRow[] = [];
+
+  for (const business of base) {
+    const [{ data: mapRows }, { data: seoRows }] = await Promise.all([
+      supabase
+        .from("map_rank_snapshots")
+        .select(
+          `
+          status,
+          share_of_local_voice,
+          average_grid_rank,
+          found_in_top_3_count,
+          total_grid_points,
+          scanned_at,
+          created_at
+        `,
+        )
+        .eq("business_id", business.id)
+        .order("scanned_at", { ascending: false, nullsFirst: false })
+        .limit(1),
+      supabase
+        .from("seo_snapshots")
+        .select(
+          `
+          domain_rating,
+          organic_traffic,
+          organic_keywords,
+          referring_domains,
+          snapshot_date,
+          created_at
+        `,
+        )
+        .eq("business_id", business.id)
+        .order("snapshot_date", { ascending: false })
+        .order("created_at", { ascending: false })
+        .limit(1),
+    ]);
+
+    const mapRank = (mapRows ?? [])[0] as
+      | {
+          status: string | null;
+          share_of_local_voice: number | string | null;
+          average_grid_rank: number | string | null;
+          found_in_top_3_count: number | null;
+          total_grid_points: number | null;
+        }
+      | undefined;
+
+    const seo = (seoRows ?? [])[0] as
+      | {
+          domain_rating: number | string | null;
+          organic_traffic: number | null;
+          organic_keywords: number | null;
+          referring_domains: number | null;
+        }
+      | undefined;
+
+    const fields: { key: string; present: boolean }[] = [
+      { key: "reviews", present: business.reviewCount !== null },
+      { key: "rating", present: business.averageRating !== null },
+      { key: "domain_rating", present: seo?.domain_rating != null },
+      { key: "organic_traffic", present: seo?.organic_traffic != null },
+      { key: "organic_keywords", present: seo?.organic_keywords != null },
+      { key: "referring_domains", present: seo?.referring_domains != null },
+      {
+        key: "solv",
+        present:
+          mapRank?.status === "finished" && mapRank.share_of_local_voice != null,
+      },
+      {
+        key: "agr",
+        present:
+          mapRank?.status === "finished" && mapRank.average_grid_rank != null,
+      },
+      {
+        key: "top3",
+        present:
+          mapRank?.status === "finished" && mapRank.found_in_top_3_count != null,
+      },
+    ];
+
+    const presentCount = fields.filter((f) => f.present).length;
+    const missingFields = fields.filter((f) => !f.present).map((f) => f.key);
+
+    rows.push({
+      id: business.id,
+      name: business.name,
+      city: business.city,
+      reviewCount: business.reviewCount,
+      averageRating: business.averageRating,
+      domainRating: seo ? toNumber(seo.domain_rating) : null,
+      organicTraffic: seo?.organic_traffic ?? null,
+      organicKeywords: seo?.organic_keywords ?? null,
+      referringDomains: seo?.referring_domains ?? null,
+      shareOfLocalVoice: mapRank ? toNumber(mapRank.share_of_local_voice) : null,
+      averageGridRank: mapRank ? toNumber(mapRank.average_grid_rank) : null,
+      foundInTop3Count: mapRank?.found_in_top_3_count ?? null,
+      totalGridPoints: mapRank?.total_grid_points ?? null,
+      mapRankStatus: mapRank?.status ?? null,
+      dataCompleteness: Math.round((presentCount / fields.length) * 100),
+      missingFields,
+    });
+  }
+
+  return rows.sort((a, b) => {
+    const ra = a.reviewCount ?? -1;
+    const rb = b.reviewCount ?? -1;
+    return rb - ra;
+  });
+}

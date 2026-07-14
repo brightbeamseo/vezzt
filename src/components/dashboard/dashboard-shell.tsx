@@ -141,6 +141,12 @@ export function DashboardShell({ businesses, summary }: Props) {
               Map listings
             </Link>
             <Link
+              href="/dashboard/boise-roofing"
+              className="rounded-lg border border-vezzt-700 px-3 py-1.5 text-xs font-medium text-vezzt-100 hover:bg-vezzt-900"
+            >
+              Boise Roofing
+            </Link>
+            <Link
               href="/admin/qualification"
               className="rounded-lg border border-vezzt-700 px-3 py-1.5 text-xs font-medium text-vezzt-100 hover:bg-vezzt-900"
             >
