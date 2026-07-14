@@ -78,15 +78,27 @@ type BusinessQueryRow = {
         id: string;
         company_name: string;
         company_type: string;
+        company_scale: string;
+        ownership_model: string;
+        location_count: number | null;
         root_domain: string | null;
         website: string | null;
+        classification_confidence: number | string | null;
+        classification_reason: string | null;
+        classification_is_manual: boolean;
       }
     | {
         id: string;
         company_name: string;
         company_type: string;
+        company_scale: string;
+        ownership_model: string;
+        location_count: number | null;
         root_domain: string | null;
         website: string | null;
+        classification_confidence: number | string | null;
+        classification_reason: string | null;
+        classification_is_manual: boolean;
       }[]
     | null;
   business_metrics: MetricsRow[] | MetricsRow | null;
@@ -291,8 +303,14 @@ export async function getDashboardBusinessById(
         id,
         company_name,
         company_type,
+        company_scale,
+        ownership_model,
+        location_count,
         root_domain,
-        website
+        website,
+        classification_confidence,
+        classification_reason,
+        classification_is_manual
       ),
       business_metrics (
         estimated_value_low,
@@ -563,8 +581,18 @@ export async function getDashboardBusinessById(
           id: companyRow.id,
           companyName: companyRow.company_name,
           companyType: companyRow.company_type,
+          companyScale: companyRow.company_scale ?? "unknown",
+          ownershipModel: companyRow.ownership_model ?? "unknown",
+          locationCount: companyRow.location_count ?? null,
           rootDomain: companyRow.root_domain,
           website: companyRow.website,
+          classificationConfidence: toNumber(
+            companyRow.classification_confidence,
+          ),
+          classificationReason: companyRow.classification_reason ?? null,
+          classificationIsManual: Boolean(
+            companyRow.classification_is_manual,
+          ),
         }
       : null,
     analysisTarget: row.analysis_target ?? null,

@@ -37,6 +37,8 @@
     "db:apply-seo-dual-scope": "tsx scripts/apply-sql.ts supabase/migrations/20250714220000_seo_snapshots_dual_scope.sql",
     "db:apply-companies": "tsx scripts/apply-sql.ts supabase/migrations/20250714210000_companies.sql",
     "backfill:companies": "tsx scripts/backfill-companies.ts",
+    "reclassify:companies": "tsx scripts/reclassify-companies.ts",
+    "db:apply-company-scale": "tsx scripts/apply-sql.ts supabase/migrations/20250714230000_company_scale_ownership.sql",
     "verify:supabase": "tsx scripts/verify-supabase.ts"
   },
   "dependencies": {

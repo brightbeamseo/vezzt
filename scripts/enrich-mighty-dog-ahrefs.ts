@@ -55,6 +55,10 @@ async function main() {
 
   const resolved = resolveSeoAnalysisPulls(
     business.website_url ?? EXPECTED_WEBSITE,
+    {
+      companyScale: "national",
+      ownershipModel: "franchise",
+    },
   );
   if (resolved.pulls.length < 2) {
     throw new Error(

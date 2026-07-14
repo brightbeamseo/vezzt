@@ -3,6 +3,8 @@
  * Google Place IDs stay unique on businesses; companies only group ownership.
  */
 
+import { MARKETS } from "@/lib/markets";
+
 export const COMPANY_TYPES = [
   "independent",
   "franchise",
@@ -25,6 +27,25 @@ export type AnalysisMode = (typeof ANALYSIS_MODES)[number];
 export const SEO_SCOPES = ["company_domain", "business_location"] as const;
 export type SeoScope = (typeof SEO_SCOPES)[number];
 
+export const COMPANY_SCALES = [
+  "single_location",
+  "multi_location",
+  "regional",
+  "national",
+  "unknown",
+] as const;
+
+export type CompanyScale = (typeof COMPANY_SCALES)[number];
+
+export const OWNERSHIP_MODELS = [
+  "independent",
+  "franchise",
+  "corporate_chain",
+  "unknown",
+] as const;
+
+export type OwnershipModel = (typeof OWNERSHIP_MODELS)[number];
+
 /** Ahrefs batch-analysis `mode` values. */
 export type AhrefsTargetMode = "domain" | "prefix" | "subdomains" | "exact";
 
@@ -46,6 +67,25 @@ export type SeoAnalysisPull = {
   analysisMode: AnalysisMode;
   parentDomain: string;
   locationPath: string | null;
+};
+
+export type CompanyLocationEvidence = {
+  id: string;
+  city: string | null;
+  state: string | null;
+  websiteUrl: string | null;
+  marketId?: string | null;
+};
+
+export type CompanyClassification = {
+  companyScale: CompanyScale;
+  ownershipModel: OwnershipModel;
+  locationCount: number;
+  serviceStates: string[];
+  serviceMarkets: string[];
+  classificationConfidence: number;
+  classificationReason: string;
+  needsManualReview: boolean;
 };
 
 const MULTI_PART_PUBLIC_SUFFIXES = new Set([
@@ -174,13 +214,205 @@ export function extractRootDomain(hostname: string): string {
   return lastTwo;
 }
 
+function uniqueSorted(values: (string | null | undefined)[]): string[] {
+  return [
+    ...new Set(
+      values
+        .map((v) => (v ?? "").trim())
+        .filter(Boolean)
+        .map((v) => v.replace(/\s+/g, " ")),
+    ),
+  ].sort((a, b) => a.localeCompare(b));
+}
+
 /**
- * Resolve Ahrefs pulls for a website.
- * Always includes parent company_domain when parseable.
- * Adds business_location when path or subdomain is meaningful.
+ * Classify company scale + ownership from linked locations and URL structure.
+ * Does not use company name as the sole signal.
+ */
+export function classifyCompany(input: {
+  locations: CompanyLocationEvidence[];
+  rootDomain: string | null;
+  metroCityAllowlist?: string[];
+}): CompanyClassification {
+  const { locations, rootDomain } = input;
+  const metro = new Set(
+    (input.metroCityAllowlist ?? MARKETS["boise-metro"].cities).map((c) =>
+      c.trim().toLowerCase(),
+    ),
+  );
+
+  const locationCount = locations.length;
+  const states = uniqueSorted(locations.map((l) => l.state));
+  const cities = uniqueSorted(locations.map((l) => l.city));
+  const markets = uniqueSorted(
+    locations.map((l) => l.marketId).filter(Boolean) as string[],
+  );
+
+  const parsedSites = locations
+    .map((l) => parseWebsite(l.websiteUrl))
+    .filter((p): p is ParsedWebsite => Boolean(p));
+
+  const anyLocationPath = parsedSites.some(
+    (p) => p.pathClassification === "meaningful",
+  );
+  const anySubdomain = parsedSites.some((p) => p.isSubdomain);
+  const anyUncertainPath = parsedSites.some(
+    (p) => p.pathClassification === "uncertain",
+  );
+  const hasFranchiseUrlPattern = anyLocationPath || anySubdomain;
+
+  let ownershipModel: OwnershipModel = "unknown";
+  let ownershipReason = "insufficient ownership evidence";
+  if (locationCount === 0) {
+    ownershipModel = "unknown";
+    ownershipReason = "no linked locations";
+  } else if (hasFranchiseUrlPattern) {
+    ownershipModel = "franchise";
+    ownershipReason = anySubdomain
+      ? "location subdomain under shared parent domain"
+      : "location path under shared parent domain";
+  } else if (
+    locationCount >= 5 &&
+    states.length >= 3 &&
+    !hasFranchiseUrlPattern
+  ) {
+    ownershipModel = "corporate_chain";
+    ownershipReason =
+      "multiple locations across several states without franchise URL patterns";
+  } else if (locationCount >= 1 && !hasFranchiseUrlPattern) {
+    ownershipModel = "independent";
+    ownershipReason =
+      "local website without franchise path/subdomain evidence";
+  }
+
+  let companyScale: CompanyScale = "unknown";
+  let scaleReason = "insufficient footprint evidence";
+  const citiesInMetro = cities.filter((c) => metro.has(c.toLowerCase()));
+  const citiesOutsideMetro = cities.filter((c) => !metro.has(c.toLowerCase()));
+
+  if (locationCount <= 0) {
+    companyScale = "unknown";
+    scaleReason = "no linked locations";
+  } else if (states.length > 10) {
+    companyScale = "national";
+    scaleReason = `${states.length} service states from linked locations`;
+  } else if (states.length >= 2 && states.length <= 10) {
+    companyScale = "regional";
+    scaleReason = `locations across ${states.length} states`;
+  } else if (citiesOutsideMetro.length > 0 && citiesInMetro.length > 0) {
+    companyScale = "regional";
+    scaleReason = "locations span multiple metros/markets";
+  } else if (locationCount >= 2 && citiesOutsideMetro.length === 0) {
+    companyScale = "multi_location";
+    scaleReason = `${locationCount} locations in one metro / nearby cities`;
+  } else if (locationCount === 1 && !hasFranchiseUrlPattern) {
+    companyScale = "single_location";
+    scaleReason = "one linked location with no multi-location URL evidence";
+  } else if (locationCount === 1 && hasFranchiseUrlPattern) {
+    companyScale = "national";
+    scaleReason =
+      "franchise location URL pattern with only one location in dataset (nationwide footprint likely; verify)";
+  }
+
+  let confidence = 0.5;
+  if (companyScale === "single_location" && ownershipModel === "independent") {
+    confidence = 0.85;
+  } else if (companyScale === "multi_location" && locationCount >= 2) {
+    confidence = 0.8;
+  } else if (companyScale === "regional" && states.length >= 2) {
+    confidence = 0.75;
+  } else if (companyScale === "national" && states.length > 10) {
+    confidence = 0.85;
+  } else if (
+    companyScale === "national" &&
+    hasFranchiseUrlPattern &&
+    locationCount === 1
+  ) {
+    confidence = 0.55;
+  } else if (ownershipModel === "franchise" && hasFranchiseUrlPattern) {
+    confidence = Math.max(confidence, 0.7);
+  } else if (!rootDomain) {
+    confidence = 0.35;
+  }
+
+  if (anyUncertainPath) confidence = Math.min(confidence, 0.55);
+
+  const needsManualReview =
+    confidence < 0.7 ||
+    companyScale === "unknown" ||
+    ownershipModel === "unknown" ||
+    (hasFranchiseUrlPattern && locationCount === 1) ||
+    anyUncertainPath ||
+    !rootDomain;
+
+  const classificationReason = [
+    `scale: ${scaleReason}`,
+    `ownership: ${ownershipReason}`,
+    `locations=${locationCount}`,
+    states.length ? `states=${states.join("|")}` : null,
+    cities.length ? `cities=${cities.join("|")}` : null,
+    rootDomain ? `root_domain=${rootDomain}` : "root_domain=missing",
+  ]
+    .filter(Boolean)
+    .join("; ");
+
+  return {
+    companyScale,
+    ownershipModel,
+    locationCount,
+    serviceStates: states,
+    serviceMarkets:
+      markets.length > 0
+        ? markets
+        : citiesInMetro.length > 0
+          ? ["boise-metro"]
+          : [],
+    classificationConfidence: Number(confidence.toFixed(2)),
+    classificationReason,
+    needsManualReview,
+  };
+}
+
+/** Whether Ahrefs should fetch a local path/subdomain pull given company scale. */
+export function shouldFetchLocalSeoPull(input: {
+  companyScale: CompanyScale | null | undefined;
+  ownershipModel: OwnershipModel | null | undefined;
+  parsed: ParsedWebsite | null;
+}): boolean {
+  if (!input.parsed) return false;
+  if (input.parsed.isSubdomain) return true;
+
+  const scale = input.companyScale ?? "unknown";
+  const ownership = input.ownershipModel ?? "unknown";
+
+  if (scale === "single_location" && ownership === "independent") {
+    return false;
+  }
+
+  if (input.parsed.pathClassification !== "meaningful") return false;
+
+  if (
+    scale === "multi_location" ||
+    scale === "regional" ||
+    scale === "national" ||
+    ownership === "franchise" ||
+    ownership === "corporate_chain"
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Resolve Ahrefs pulls using website structure + company scale/ownership.
  */
 export function resolveSeoAnalysisPulls(
   websiteUrl: string | null | undefined,
+  options?: {
+    companyScale?: CompanyScale | null;
+    ownershipModel?: OwnershipModel | null;
+  },
 ): {
   pulls: SeoAnalysisPull[];
   needsManualReview: boolean;
@@ -205,6 +437,12 @@ export function resolveSeoAnalysisPulls(
     locationPath: null,
   };
 
+  const fetchLocal = shouldFetchLocalSeoPull({
+    companyScale: options?.companyScale,
+    ownershipModel: options?.ownershipModel,
+    parsed,
+  });
+
   if (parsed.isSubdomain) {
     return {
       pulls: [
@@ -223,7 +461,7 @@ export function resolveSeoAnalysisPulls(
     };
   }
 
-  if (parsed.pathClassification === "meaningful") {
+  if (fetchLocal && parsed.pathClassification === "meaningful") {
     const path =
       parsed.pathname.endsWith("/") || parsed.pathname.includes(".")
         ? parsed.pathname
@@ -254,6 +492,15 @@ export function resolveSeoAnalysisPulls(
     };
   }
 
+  if (parsed.pathClassification === "meaningful" && !fetchLocal) {
+    return {
+      pulls: [parentPull],
+      needsManualReview: false,
+      reason: "single_location_independent_skips_path_pull",
+      parsed,
+    };
+  }
+
   return {
     pulls: [parentPull],
     needsManualReview: false,
@@ -265,6 +512,8 @@ export function resolveSeoAnalysisPulls(
 export function determineAnalysis(input: {
   parsed: ParsedWebsite | null;
   shareCount: number;
+  companyScale?: CompanyScale | null;
+  ownershipModel?: OwnershipModel | null;
 }): {
   analysisMode: AnalysisMode | null;
   analysisTarget: string | null;
@@ -282,7 +531,10 @@ export function determineAnalysis(input: {
     };
   }
 
-  const resolved = resolveSeoAnalysisPulls(parsed.input);
+  const resolved = resolveSeoAnalysisPulls(parsed.input, {
+    companyScale: input.companyScale,
+    ownershipModel: input.ownershipModel,
+  });
   const location = resolved.pulls.find((p) => p.scope === "business_location");
   if (location) {
     return {

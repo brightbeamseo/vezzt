@@ -231,6 +231,30 @@ export default async function BusinessDetailPage({
       value: business.company?.companyType ?? "null",
     },
     {
+      label: "company_scale",
+      value: business.company?.companyScale ?? "null",
+    },
+    {
+      label: "ownership_model",
+      value: business.company?.ownershipModel ?? "null",
+    },
+    {
+      label: "location_count",
+      value:
+        business.company?.locationCount === null ||
+        business.company?.locationCount === undefined
+          ? "null"
+          : String(business.company.locationCount),
+    },
+    {
+      label: "classification_confidence",
+      value:
+        business.company?.classificationConfidence === null ||
+        business.company?.classificationConfidence === undefined
+          ? "null"
+          : String(business.company.classificationConfidence),
+    },
+    {
       label: "analysis_mode",
       value: business.analysisMode ?? "null",
     },
@@ -334,29 +358,40 @@ export default async function BusinessDetailPage({
                   value={business.company.companyName}
                 />
                 <Field
-                  label="Company Type"
-                  value={business.company.companyType}
+                  label="Company Scale"
+                  value={business.company.companyScale}
+                />
+                <Field
+                  label="Ownership Model"
+                  value={business.company.ownershipModel}
+                />
+                <Field
+                  label="Known Location Count"
+                  value={
+                    business.company.locationCount === null
+                      ? "—"
+                      : String(business.company.locationCount)
+                  }
                 />
                 <Field
                   label="Root Domain"
                   value={business.company.rootDomain ?? "—"}
                 />
                 <Field
-                  label="Analysis Mode"
-                  value={business.analysisMode ?? "—"}
-                />
-                <Field
-                  label="Analysis Target"
+                  label="Classification Confidence"
                   value={
-                    business.analysisTarget ? (
-                      <span className="break-all font-mono text-xs">
-                        {business.analysisTarget}
-                      </span>
-                    ) : (
-                      "—"
-                    )
+                    business.company.classificationConfidence === null
+                      ? "—"
+                      : String(business.company.classificationConfidence)
                   }
                 />
+                <Field
+                  label="Classification Reason"
+                  value={business.company.classificationReason ?? "—"}
+                />
+                {business.company.classificationIsManual ? (
+                  <Field label="Manual Override" value="Yes" />
+                ) : null}
               </dl>
 
               {business.siblingLocations.length > 0 ? (

@@ -144,8 +144,14 @@ export type DashboardBusinessDetail = DashboardBusiness & {
     id: string;
     companyName: string;
     companyType: string;
+    companyScale: string;
+    ownershipModel: string;
+    locationCount: number | null;
     rootDomain: string | null;
     website: string | null;
+    classificationConfidence: number | null;
+    classificationReason: string | null;
+    classificationIsManual: boolean;
   } | null;
   analysisTarget: string | null;
   analysisMode: string | null;
