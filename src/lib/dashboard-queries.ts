@@ -409,6 +409,11 @@ export async function getDashboardBusinessById(
       id,
       provider,
       domain,
+      scope,
+      analysis_target,
+      analysis_mode,
+      parent_domain,
+      location_path,
       snapshot_date,
       domain_rating,
       referring_domains,
@@ -416,33 +421,63 @@ export async function getDashboardBusinessById(
       organic_traffic,
       organic_keywords,
       organic_keywords_top3,
-      traffic_value
+      traffic_value,
+      created_at
     `,
     )
     .eq("business_id", id)
     .order("snapshot_date", { ascending: false })
-    .order("created_at", { ascending: false })
-    .limit(1);
+    .order("created_at", { ascending: false });
 
   if (seoError) {
     throw new Error(`Failed to load SEO snapshot for ${id}: ${seoError.message}`);
   }
 
-  const seoRow = (seoRows ?? [])[0] as
-    | {
-        id: string;
-        provider: string;
-        domain: string;
-        snapshot_date: string;
-        domain_rating: number | string | null;
-        referring_domains: number | null;
-        backlinks: number | null;
-        organic_traffic: number | null;
-        organic_keywords: number | null;
-        organic_keywords_top3: number | null;
-        traffic_value: number | string | null;
-      }
-    | undefined;
+  type SeoDb = {
+    id: string;
+    provider: string;
+    domain: string;
+    scope: string;
+    analysis_target: string;
+    analysis_mode: string;
+    parent_domain: string | null;
+    location_path: string | null;
+    snapshot_date: string;
+    domain_rating: number | string | null;
+    referring_domains: number | null;
+    backlinks: number | null;
+    organic_traffic: number | null;
+    organic_keywords: number | null;
+    organic_keywords_top3: number | null;
+    traffic_value: number | string | null;
+  };
+
+  const mapSeo = (seoRow: SeoDb) => ({
+    id: seoRow.id,
+    provider: seoRow.provider,
+    domain: seoRow.domain,
+    scope: seoRow.scope,
+    analysisTarget: seoRow.analysis_target,
+    analysisMode: seoRow.analysis_mode,
+    parentDomain: seoRow.parent_domain,
+    locationPath: seoRow.location_path,
+    snapshotDate: seoRow.snapshot_date,
+    domainRating: toNumber(seoRow.domain_rating),
+    referringDomains: seoRow.referring_domains,
+    backlinks: seoRow.backlinks,
+    organicTraffic: seoRow.organic_traffic,
+    organicKeywords: seoRow.organic_keywords,
+    organicKeywordsTop3: seoRow.organic_keywords_top3,
+    trafficValue: toNumber(seoRow.traffic_value),
+  });
+
+  const allSeo = (seoRows ?? []) as SeoDb[];
+  const seoParentRow =
+    allSeo.find((r) => r.scope === "company_domain") ?? null;
+  const seoLocalRow =
+    allSeo.find((r) => r.scope === "business_location") ?? null;
+  // Legacy / single-scope display fallback
+  const seoRow = seoParentRow ?? seoLocalRow ?? allSeo[0] ?? undefined;
 
   const companyRow = asArray(row.companies)[0] ?? null;
   const companyId = row.company_id ?? companyRow?.id ?? null;
@@ -520,21 +555,9 @@ export async function getDashboardBusinessById(
               : null,
         }
       : null,
-    seo: seoRow
-      ? {
-          id: seoRow.id,
-          provider: seoRow.provider,
-          domain: seoRow.domain,
-          snapshotDate: seoRow.snapshot_date,
-          domainRating: toNumber(seoRow.domain_rating),
-          referringDomains: seoRow.referring_domains,
-          backlinks: seoRow.backlinks,
-          organicTraffic: seoRow.organic_traffic,
-          organicKeywords: seoRow.organic_keywords,
-          organicKeywordsTop3: seoRow.organic_keywords_top3,
-          trafficValue: toNumber(seoRow.traffic_value),
-        }
-      : null,
+    seo: seoRow ? mapSeo(seoRow) : null,
+    seoParent: seoParentRow ? mapSeo(seoParentRow) : null,
+    seoLocal: seoLocalRow ? mapSeo(seoLocalRow) : null,
     company: companyRow
       ? {
           id: companyRow.id,
@@ -667,6 +690,7 @@ export async function getBoiseRoofingComparison(): Promise<
         .from("seo_snapshots")
         .select(
           `
+          scope,
           domain_rating,
           organic_traffic,
           organic_keywords,
@@ -678,7 +702,7 @@ export async function getBoiseRoofingComparison(): Promise<
         .eq("business_id", business.id)
         .order("snapshot_date", { ascending: false })
         .order("created_at", { ascending: false })
-        .limit(1),
+        .limit(5),
     ]);
 
     const mapRank = (mapRows ?? [])[0] as
@@ -691,14 +715,16 @@ export async function getBoiseRoofingComparison(): Promise<
         }
       | undefined;
 
-    const seo = (seoRows ?? [])[0] as
-      | {
-          domain_rating: number | string | null;
-          organic_traffic: number | null;
-          organic_keywords: number | null;
-          referring_domains: number | null;
-        }
-      | undefined;
+    const seoCandidates = (seoRows ?? []) as {
+      scope?: string;
+      domain_rating: number | string | null;
+      organic_traffic: number | null;
+      organic_keywords: number | null;
+      referring_domains: number | null;
+    }[];
+    const seo =
+      seoCandidates.find((r) => r.scope === "company_domain") ??
+      seoCandidates[0];
 
     const fields: { key: string; present: boolean }[] = [
       { key: "reviews", present: business.reviewCount !== null },

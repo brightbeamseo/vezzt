@@ -546,66 +546,192 @@ export default async function BusinessDetailPage({
             Digital Presence
           </h2>
           <p className="mt-1 text-xs text-neutral-500">
-            Ahrefs domain summary metrics. Missing values show as Not available —
-            zeros are only shown when Ahrefs returns them.
+            Ahrefs summary metrics. Parent brand and local path/subdomain values
+            are stored separately and never added together.
           </p>
 
-          {!business.seo ? (
+          {!business.seoParent && !business.seoLocal && !business.seo ? (
             <p className="mt-4 text-sm text-neutral-500">
               No SEO snapshot stored for this business yet.
             </p>
+          ) : business.seoLocal ? (
+            <div className="mt-4 space-y-6">
+              <div>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                  Parent Brand Authority
+                </h3>
+                {business.seoParent ? (
+                  <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-3">
+                    <Metric
+                      label="Parent domain"
+                      value={
+                        business.seoParent.parentDomain ||
+                        business.seoParent.analysisTarget ||
+                        "Not available"
+                      }
+                    />
+                    <Metric
+                      label="Domain Rating"
+                      value={formatSeoMetric(business.seoParent.domainRating, {
+                        digits: 1,
+                      })}
+                    />
+                    <Metric
+                      label="Parent organic traffic"
+                      value={formatSeoMetric(business.seoParent.organicTraffic, {
+                        kind: "integer",
+                      })}
+                    />
+                    <Metric
+                      label="Parent organic keywords"
+                      value={formatSeoMetric(
+                        business.seoParent.organicKeywords,
+                        { kind: "integer" },
+                      )}
+                    />
+                    <Metric
+                      label="Parent referring domains"
+                      value={formatSeoMetric(
+                        business.seoParent.referringDomains,
+                        { kind: "integer" },
+                      )}
+                    />
+                    <Metric
+                      label="Snapshot Date"
+                      value={
+                        business.seoParent.snapshotDate || "Not available"
+                      }
+                    />
+                  </div>
+                ) : (
+                  <p className="mt-3 text-sm text-neutral-500">
+                    Parent-domain snapshot not stored yet.
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                  Local Website Presence
+                </h3>
+                <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-3">
+                  <Metric
+                    label="Location target"
+                    value={business.seoLocal.analysisTarget || "Not available"}
+                  />
+                  <Metric
+                    label="Analysis mode"
+                    value={business.seoLocal.analysisMode || "Not available"}
+                  />
+                  <Metric
+                    label="Local organic traffic"
+                    value={formatSeoMetric(business.seoLocal.organicTraffic, {
+                      kind: "integer",
+                    })}
+                  />
+                  <Metric
+                    label="Local organic keywords"
+                    value={formatSeoMetric(business.seoLocal.organicKeywords, {
+                      kind: "integer",
+                    })}
+                  />
+                  <Metric
+                    label="Local top-3 keywords"
+                    value={formatSeoMetric(
+                      business.seoLocal.organicKeywordsTop3,
+                      { kind: "integer" },
+                    )}
+                  />
+                  <Metric
+                    label="Local referring domains"
+                    value={formatSeoMetric(business.seoLocal.referringDomains, {
+                      kind: "integer",
+                    })}
+                  />
+                  <Metric
+                    label="Local traffic value"
+                    value={formatSeoMetric(business.seoLocal.trafficValue, {
+                      kind: "currency",
+                    })}
+                  />
+                  <Metric
+                    label="Snapshot Date"
+                    value={business.seoLocal.snapshotDate || "Not available"}
+                  />
+                </div>
+              </div>
+            </div>
           ) : (
-            <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-3">
-              <Metric
-                label="Domain"
-                value={business.seo.domain || "Not available"}
-              />
-              <Metric
-                label="Domain Rating"
-                value={formatSeoMetric(business.seo.domainRating, {
-                  digits: 1,
-                })}
-              />
-              <Metric
-                label="Organic Traffic"
-                value={formatSeoMetric(business.seo.organicTraffic, {
-                  kind: "integer",
-                })}
-              />
-              <Metric
-                label="Organic Keywords"
-                value={formatSeoMetric(business.seo.organicKeywords, {
-                  kind: "integer",
-                })}
-              />
-              <Metric
-                label="Keywords in Positions 1–3"
-                value={formatSeoMetric(business.seo.organicKeywordsTop3, {
-                  kind: "integer",
-                })}
-              />
-              <Metric
-                label="Referring Domains"
-                value={formatSeoMetric(business.seo.referringDomains, {
-                  kind: "integer",
-                })}
-              />
-              <Metric
-                label="Backlinks"
-                value={formatSeoMetric(business.seo.backlinks, {
-                  kind: "integer",
-                })}
-              />
-              <Metric
-                label="Traffic Value"
-                value={formatSeoMetric(business.seo.trafficValue, {
-                  kind: "currency",
-                })}
-              />
-              <Metric
-                label="Snapshot Date"
-                value={business.seo.snapshotDate || "Not available"}
-              />
+            <div className="mt-4 space-y-3">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                Search Presence
+              </h3>
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+                <Metric
+                  label="Domain"
+                  value={
+                    business.seoParent?.parentDomain ||
+                    business.seo?.domain ||
+                    "Not available"
+                  }
+                />
+                <Metric
+                  label="Domain Rating"
+                  value={formatSeoMetric(
+                    (business.seoParent ?? business.seo)?.domainRating,
+                    { digits: 1 },
+                  )}
+                />
+                <Metric
+                  label="Organic Traffic"
+                  value={formatSeoMetric(
+                    (business.seoParent ?? business.seo)?.organicTraffic,
+                    { kind: "integer" },
+                  )}
+                />
+                <Metric
+                  label="Organic Keywords"
+                  value={formatSeoMetric(
+                    (business.seoParent ?? business.seo)?.organicKeywords,
+                    { kind: "integer" },
+                  )}
+                />
+                <Metric
+                  label="Keywords in Positions 1–3"
+                  value={formatSeoMetric(
+                    (business.seoParent ?? business.seo)?.organicKeywordsTop3,
+                    { kind: "integer" },
+                  )}
+                />
+                <Metric
+                  label="Referring Domains"
+                  value={formatSeoMetric(
+                    (business.seoParent ?? business.seo)?.referringDomains,
+                    { kind: "integer" },
+                  )}
+                />
+                <Metric
+                  label="Backlinks"
+                  value={formatSeoMetric(
+                    (business.seoParent ?? business.seo)?.backlinks,
+                    { kind: "integer" },
+                  )}
+                />
+                <Metric
+                  label="Traffic Value"
+                  value={formatSeoMetric(
+                    (business.seoParent ?? business.seo)?.trafficValue,
+                    { kind: "currency" },
+                  )}
+                />
+                <Metric
+                  label="Snapshot Date"
+                  value={
+                    (business.seoParent ?? business.seo)?.snapshotDate ||
+                    "Not available"
+                  }
+                />
+              </div>
             </div>
           )}
         </section>

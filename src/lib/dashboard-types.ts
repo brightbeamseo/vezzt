@@ -88,6 +88,49 @@ export type DashboardBusinessDetail = DashboardBusiness & {
     id: string;
     provider: string;
     domain: string;
+    scope: string;
+    analysisTarget: string;
+    analysisMode: string;
+    parentDomain: string | null;
+    locationPath: string | null;
+    snapshotDate: string;
+    domainRating: number | null;
+    referringDomains: number | null;
+    backlinks: number | null;
+    organicTraffic: number | null;
+    organicKeywords: number | null;
+    organicKeywordsTop3: number | null;
+    trafficValue: number | null;
+  } | null;
+  /** Parent brand / company_domain snapshot (domain mode). */
+  seoParent: {
+    id: string;
+    provider: string;
+    domain: string;
+    scope: string;
+    analysisTarget: string;
+    analysisMode: string;
+    parentDomain: string | null;
+    locationPath: string | null;
+    snapshotDate: string;
+    domainRating: number | null;
+    referringDomains: number | null;
+    backlinks: number | null;
+    organicTraffic: number | null;
+    organicKeywords: number | null;
+    organicKeywordsTop3: number | null;
+    trafficValue: number | null;
+  } | null;
+  /** Local path/subdomain snapshot when dual-scope enrichment ran. */
+  seoLocal: {
+    id: string;
+    provider: string;
+    domain: string;
+    scope: string;
+    analysisTarget: string;
+    analysisMode: string;
+    parentDomain: string | null;
+    locationPath: string | null;
     snapshotDate: string;
     domainRating: number | null;
     referringDomains: number | null;

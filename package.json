@@ -32,7 +32,9 @@
     "check:boise-roofing-geogrid": "tsx scripts/check-boise-roofing-geogrid.ts",
     "enrich:point-roofing-ahrefs": "tsx scripts/enrich-point-roofing-ahrefs.ts",
     "enrich:boise-roofing-ahrefs": "tsx scripts/enrich-boise-roofing-ahrefs.ts",
+    "enrich:mighty-dog-ahrefs": "tsx scripts/enrich-mighty-dog-ahrefs.ts",
     "db:apply-seo": "tsx scripts/apply-sql.ts supabase/migrations/20250714200000_seo_snapshots.sql",
+    "db:apply-seo-dual-scope": "tsx scripts/apply-sql.ts supabase/migrations/20250714220000_seo_snapshots_dual_scope.sql",
     "db:apply-companies": "tsx scripts/apply-sql.ts supabase/migrations/20250714210000_companies.sql",
     "backfill:companies": "tsx scripts/backfill-companies.ts",
     "verify:supabase": "tsx scripts/verify-supabase.ts"
