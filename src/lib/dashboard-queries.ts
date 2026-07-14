@@ -320,6 +320,59 @@ export async function getDashboardBusinessById(
           : 0,
     );
 
+  const { data: mapRankRows, error: mapRankError } = await supabase
+    .from("map_rank_snapshots")
+    .select(
+      `
+      id,
+      provider_scan_id,
+      search_term,
+      scanned_at,
+      grid_size,
+      spacing_value,
+      spacing_unit,
+      average_grid_rank,
+      average_total_grid_rank,
+      share_of_local_voice,
+      found_in_top_3_count,
+      found_in_top_10_count,
+      total_grid_points,
+      ranks,
+      status,
+      raw_response
+    `,
+    )
+    .eq("business_id", id)
+    .order("scanned_at", { ascending: false, nullsFirst: false })
+    .limit(1);
+
+  if (mapRankError) {
+    throw new Error(
+      `Failed to load map rank for ${id}: ${mapRankError.message}`,
+    );
+  }
+
+  const mapRankRow = (mapRankRows ?? [])[0] as
+    | {
+        id: string;
+        provider_scan_id: string;
+        search_term: string;
+        scanned_at: string | null;
+        grid_size: number | null;
+        spacing_value: number | string | null;
+        spacing_unit: string | null;
+        average_grid_rank: number | string | null;
+        average_total_grid_rank: number | string | null;
+        share_of_local_voice: number | string | null;
+        found_in_top_3_count: number | null;
+        found_in_top_10_count: number | null;
+        total_grid_points: number | null;
+        ranks: unknown;
+        status: string | null;
+        raw_response: { error?: string } | null;
+      }
+    | undefined;
+
   return {
     ...base,
     snapshots,
@@ -341,6 +394,29 @@ export async function getDashboardBusinessById(
       : null,
     metricsUpdatedAt: metrics?.updated_at ?? null,
     modelVersion: SCORE_MODEL_STATUS,
+    mapRank: mapRankRow
+      ? {
+          id: mapRankRow.id,
+          providerScanId: mapRankRow.provider_scan_id,
+          searchTerm: mapRankRow.search_term,
+          scannedAt: mapRankRow.scanned_at,
+          gridSize: mapRankRow.grid_size,
+          spacingValue: toNumber(mapRankRow.spacing_value),
+          spacingUnit: mapRankRow.spacing_unit,
+          averageGridRank: toNumber(mapRankRow.average_grid_rank),
+          averageTotalGridRank: toNumber(mapRankRow.average_total_grid_rank),
+          shareOfLocalVoice: toNumber(mapRankRow.share_of_local_voice),
+          foundInTop3Count: mapRankRow.found_in_top_3_count,
+          foundInTop10Count: mapRankRow.found_in_top_10_count,
+          totalGridPoints: mapRankRow.total_grid_points,
+          ranks: mapRankRow.ranks,
+          status: mapRankRow.status,
+          errorMessage:
+            mapRankRow.status === "failed"
+              ? (mapRankRow.raw_response?.error ?? "Scan failed")
+              : null,
+        }
+      : null,
   };
 }
 

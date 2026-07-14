@@ -66,6 +66,24 @@ export type DashboardBusinessDetail = DashboardBusiness & {
     notes: string | null;
   } | null;
   metricsUpdatedAt: string | null;
+  mapRank: {
+    id: string;
+    providerScanId: string;
+    searchTerm: string;
+    scannedAt: string | null;
+    gridSize: number | null;
+    spacingValue: number | null;
+    spacingUnit: string | null;
+    averageGridRank: number | null;
+    averageTotalGridRank: number | null;
+    shareOfLocalVoice: number | null;
+    foundInTop3Count: number | null;
+    foundInTop10Count: number | null;
+    totalGridPoints: number | null;
+    ranks: unknown;
+    status: string | null;
+    errorMessage: string | null;
+  } | null;
 };
 
 export type DashboardSummary = {

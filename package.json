@@ -26,6 +26,7 @@
     "db:apply-monitoring-tiers": "tsx scripts/apply-sql.ts supabase/migrations/20250713190000_monitoring_two_tiers.sql",
     "db:apply-geogrid": "tsx scripts/apply-sql.ts supabase/migrations/20250714180000_geogrid_snapshots.sql",
     "store:lbm-geogrid": "tsx scripts/store-lbm-geogrid.ts",
+    "scan:point-roofing-map-rank": "tsx scripts/run-point-roofing-map-rank.ts",
     "verify:supabase": "tsx scripts/verify-supabase.ts"
   },
   "dependencies": {

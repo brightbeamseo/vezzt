@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { getDashboardBusinessById } from "@/lib/dashboard-queries";
 import { formatNullable } from "@/lib/format";
 import { ReviewCountChart } from "@/components/dashboard/review-count-chart";
+import { MapRankGrid } from "@/components/dashboard/map-rank-grid";
 import { SCORE_MODEL_STATUS } from "@/lib/dashboard-types";
 
 export const dynamic = "force-dynamic";
@@ -149,6 +150,18 @@ export default async function BusinessDetailPage({
       label: "brand_strength (proprietary_scores)",
       value: "null — table missing",
     },
+    {
+      label: "map_rank.status",
+      value: business.mapRank?.status ?? "null",
+    },
+    {
+      label: "map_rank.error",
+      value: business.mapRank?.errorMessage ?? "null",
+    },
+    {
+      label: "map_rank.provider_scan_id",
+      value: business.mapRank?.providerScanId ?? "null",
+    },
   ];
 
   return (
@@ -263,6 +276,128 @@ export default async function BusinessDetailPage({
               value={business.qualificationReason ?? "—"}
             />
           </dl>
+        </section>
+
+        <section className="rounded-xl border border-neutral-200 bg-white p-5 shadow-sm">
+          <h2 className="text-sm font-semibold text-vezzt-950">
+            Google Maps Visibility
+          </h2>
+          <p className="mt-1 text-xs text-neutral-500">
+            Local pack GeoGrid from Local Brand Manager, matched by Google Place
+            ID.
+          </p>
+
+          {!business.mapRank ? (
+            <p className="mt-4 text-sm text-neutral-500">
+              No GeoGrid scan stored for this business yet.
+            </p>
+          ) : business.mapRank.status === "pending" ||
+            business.mapRank.status === "processing" ? (
+            <p className="mt-4 text-sm font-medium text-amber-800">
+              GeoGrid scan in progress.
+            </p>
+          ) : business.mapRank.status === "failed" ? (
+            <div className="mt-4 space-y-2">
+              <p className="text-sm font-medium text-red-700">
+                GeoGrid scan failed.
+              </p>
+              <p className="font-mono text-xs text-red-800">
+                {business.mapRank.errorMessage ?? "Unknown error"}
+              </p>
+            </div>
+          ) : (
+            <div className="mt-4 space-y-5">
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+                <Metric
+                  label="Share of Local Voice"
+                  value={
+                    business.mapRank.shareOfLocalVoice === null
+                      ? "—"
+                      : `${(business.mapRank.shareOfLocalVoice * 100).toFixed(1)}%`
+                  }
+                />
+                <Metric
+                  label="Average Grid Rank"
+                  value={formatNullable(business.mapRank.averageGridRank, {
+                    kind: "number",
+                    digits: 2,
+                  })}
+                />
+                <Metric
+                  label="Average Total Grid Rank"
+                  value={formatNullable(
+                    business.mapRank.averageTotalGridRank,
+                    { kind: "number", digits: 2 },
+                  )}
+                />
+                <Metric
+                  label="Top 3 coverage"
+                  value={
+                    business.mapRank.foundInTop3Count === null ||
+                    business.mapRank.totalGridPoints === null
+                      ? "—"
+                      : `${business.mapRank.foundInTop3Count} / ${business.mapRank.totalGridPoints}`
+                  }
+                />
+                <Metric
+                  label="Top 10 coverage"
+                  value={
+                    business.mapRank.foundInTop10Count === null ||
+                    business.mapRank.totalGridPoints === null
+                      ? "—"
+                      : `${business.mapRank.foundInTop10Count} / ${business.mapRank.totalGridPoints}`
+                  }
+                />
+                <Metric
+                  label="Scan status"
+                  value={business.mapRank.status ?? "—"}
+                />
+              </div>
+
+              <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <Field
+                  label="Keyword"
+                  value={business.mapRank.searchTerm || "—"}
+                />
+                <Field
+                  label="Grid size"
+                  value={
+                    business.mapRank.gridSize === null
+                      ? "—"
+                      : `${business.mapRank.gridSize}×${business.mapRank.gridSize}`
+                  }
+                />
+                <Field
+                  label="Spacing"
+                  value={
+                    business.mapRank.spacingValue === null
+                      ? "—"
+                      : `${business.mapRank.spacingValue} ${business.mapRank.spacingUnit ?? ""}`.trim()
+                  }
+                />
+                <Field
+                  label="Scan date"
+                  value={
+                    business.mapRank.scannedAt
+                      ? new Date(business.mapRank.scannedAt).toLocaleString(
+                          "en-US",
+                          { timeZone: "America/Boise" },
+                        )
+                      : "—"
+                  }
+                />
+              </dl>
+
+              <div>
+                <h3 className="text-xs font-medium uppercase tracking-wide text-neutral-500">
+                  Rank grid
+                </h3>
+                <div className="mt-3">
+                  <MapRankGrid ranks={business.mapRank.ranks} />
+                </div>
+              </div>
+            </div>
+          )}
         </section>
 
         <section className="rounded-xl border border-neutral-200 bg-white p-5 shadow-sm">
