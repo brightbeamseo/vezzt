@@ -77,24 +77,57 @@ function toNullableInt(value: unknown): number | null {
   return num === null ? null : Math.round(num);
 }
 
+function rowToMetrics(
+  requestedDomain: string,
+  row: Record<string, unknown>,
+): AhrefsSummaryMetrics {
+  const returnedUrl =
+    typeof row.url === "string" ? row.url : requestedDomain;
+  const domain = normalizeAhrefsDomain(returnedUrl) || requestedDomain;
+  return {
+    domain,
+    domainRating: toNullableNumber(row.domain_rating),
+    referringDomains: toNullableInt(row.refdomains),
+    backlinks: toNullableInt(row.backlinks),
+    organicTraffic: toNullableInt(row.org_traffic),
+    organicKeywords: toNullableInt(row.org_keywords),
+    organicKeywordsTop3: toNullableInt(row.org_keywords_1_3),
+    trafficValue: toNullableNumber(row.org_cost),
+  };
+}
+
+export type AhrefsMultiBatchResult = {
+  endpoint: string;
+  unitsCost: number | null;
+  rawResponse: unknown;
+  /** Keyed by normalized request domain. */
+  byDomain: Map<string, AhrefsSummaryMetrics>;
+};
+
 /**
- * Pull summary SEO metrics for one domain via Batch Analysis.
+ * Pull summary SEO metrics for one or more domains via Batch Analysis.
  * Does not request top pages, keyword lists, or backlink lists.
  */
-export async function fetchAhrefsDomainSummary(
-  domainInput: string,
-): Promise<AhrefsBatchResult> {
-  const domain = normalizeAhrefsDomain(domainInput);
+export async function fetchAhrefsDomainSummaries(
+  domainInputs: string[],
+): Promise<AhrefsMultiBatchResult> {
+  const domains = [
+    ...new Set(
+      domainInputs.map((d) => normalizeAhrefsDomain(d)).filter(Boolean),
+    ),
+  ];
+  if (domains.length === 0) {
+    throw new Error("At least one domain is required.");
+  }
+
   const endpoint = `${AHREFS_BASE}/batch-analysis/batch-analysis`;
   const body = {
     select: [...BATCH_SELECT],
-    targets: [
-      {
-        url: domain,
-        mode: "domain",
-        protocol: "both",
-      },
-    ],
+    targets: domains.map((domain) => ({
+      url: domain,
+      mode: "domain" as const,
+      protocol: "both" as const,
+    })),
   };
 
   const res = await fetch(endpoint, {
@@ -123,27 +156,51 @@ export async function fetchAhrefsDomainSummary(
   const targets = (
     rawResponse as { targets?: Record<string, unknown>[] } | null
   )?.targets;
-  const row = Array.isArray(targets) ? targets[0] : undefined;
-  if (!row) {
+  if (!Array.isArray(targets) || targets.length === 0) {
     throw new Error(
-      `Ahrefs returned no target row for domain=${domain}: ${JSON.stringify(rawResponse).slice(0, 500)}`,
+      `Ahrefs returned no target rows: ${JSON.stringify(rawResponse).slice(0, 500)}`,
     );
+  }
+
+  const byDomain = new Map<string, AhrefsSummaryMetrics>();
+
+  // Prefer index alignment with request order; also index by returned URL.
+  for (let i = 0; i < targets.length; i++) {
+    const row = targets[i]!;
+    const requested = domains[i] ?? normalizeAhrefsDomain(String(row.url ?? ""));
+    const metrics = rowToMetrics(requested, row);
+    if (requested) byDomain.set(requested, { ...metrics, domain: requested });
+    byDomain.set(metrics.domain, {
+      ...metrics,
+      domain: metrics.domain,
+    });
   }
 
   return {
     endpoint,
     unitsCost: Number.isFinite(unitsCost) ? unitsCost : null,
     rawResponse,
-    metrics: {
-      domain,
-      domainRating: toNullableNumber(row.domain_rating),
-      referringDomains: toNullableInt(row.refdomains),
-      backlinks: toNullableInt(row.backlinks),
-      organicTraffic: toNullableInt(row.org_traffic),
-      organicKeywords: toNullableInt(row.org_keywords),
-      organicKeywordsTop3: toNullableInt(row.org_keywords_1_3),
-      trafficValue: toNullableNumber(row.org_cost),
-    },
+    byDomain,
+  };
+}
+
+/**
+ * Pull summary SEO metrics for one domain via Batch Analysis.
+ */
+export async function fetchAhrefsDomainSummary(
+  domainInput: string,
+): Promise<AhrefsBatchResult> {
+  const domain = normalizeAhrefsDomain(domainInput);
+  const multi = await fetchAhrefsDomainSummaries([domain]);
+  const metrics = multi.byDomain.get(domain);
+  if (!metrics) {
+    throw new Error(`Ahrefs returned no metrics for domain=${domain}`);
+  }
+  return {
+    endpoint: multi.endpoint,
+    unitsCost: multi.unitsCost,
+    rawResponse: multi.rawResponse,
+    metrics,
   };
 }
 
