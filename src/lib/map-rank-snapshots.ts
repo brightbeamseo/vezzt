@@ -4,7 +4,6 @@ import {
   createLbmGeogrid,
   extractSubjectMetrics,
   fetchLbmGeogrid,
-  waitForLbmGeogrid,
   type LbmGeogridCompetitor,
   type LbmGeogridPayload,
 } from "@/lib/lbm-geogrid";
@@ -267,10 +266,10 @@ export async function markMapRankSnapshotFailed(input: {
 }
 
 /**
- * Create one LBM GeoGrid, insert pending row, poll to completion, update snapshot.
- * Matches subject business by Google Place ID only.
+ * Start one LBM GeoGrid: create remote scan + pending DB row, then return.
+ * Does not poll. Use checkLbmGeogridOnce() later.
  */
-export async function runAndStoreMapRankScan(input: {
+export async function startMapRankScan(input: {
   businessId: string;
   businessName: string;
   googlePlaceId: string;
@@ -283,7 +282,8 @@ export async function runAndStoreMapRankScan(input: {
 }): Promise<{
   creditsEstimated: number;
   providerScanId: string;
-  snapshot: MapRankSnapshotRow;
+  snapshotId: string;
+  status: "pending";
 }> {
   const creditsEstimated = input.gridSize * input.gridSize;
 
@@ -299,7 +299,7 @@ export async function runAndStoreMapRankScan(input: {
     local: true,
   });
 
-  await insertPendingMapRankSnapshot({
+  const snapshotId = await insertPendingMapRankSnapshot({
     businessId: input.businessId,
     businessPlaceId: input.googlePlaceId,
     providerScanId: created.id,
@@ -309,41 +309,126 @@ export async function runAndStoreMapRankScan(input: {
     spacingUnit: input.spacingUnit,
   });
 
-  try {
-    const payload = await waitForLbmGeogrid(created.id, {
-      timeoutMs: 25 * 60 * 1000,
-      pollMs: 10_000,
-    });
+  return {
+    creditsEstimated,
+    providerScanId: created.id,
+    snapshotId,
+    status: "pending",
+  };
+}
 
-    if (payload.state === "error") {
-      await markMapRankSnapshotFailed({
-        providerScanId: created.id,
-        errorMessage: "LBM geogrid state=error",
-        raw: payload,
-      });
-      throw new Error("LBM geogrid finished with state=error");
+/**
+ * One-shot LBM status check. Never polls.
+ * - pending/processing → report and exit (no DB update beyond optional status sync)
+ * - finished → store results in map_rank_snapshots
+ * - error/failed → store error
+ */
+export async function checkLbmGeogridOnce(
+  providerScanId: string,
+): Promise<{
+  providerScanId: string;
+  lbmState: string | null;
+  action: "pending" | "stored" | "failed";
+  snapshot: MapRankSnapshotRow | null;
+  message: string;
+}> {
+  const db = await connectAdminPg();
+  try {
+    const { rows: existing } = await db.query<{
+      business_place_id: string;
+      status: string | null;
+    }>(
+      `select business_place_id, status
+       from public.map_rank_snapshots
+       where provider = 'local_brand_manager'
+         and provider_scan_id = $1`,
+      [providerScanId],
+    );
+
+    if (!existing[0]) {
+      throw new Error(
+        `No map_rank_snapshots row for provider_scan_id=${providerScanId}`,
+      );
     }
 
-    // Final fetch ensures competitors are fully populated
-    const finalPayload = await fetchLbmGeogrid(created.id);
-    const snapshot = await completeMapRankSnapshot({
-      providerScanId: created.id,
-      businessPlaceId: input.googlePlaceId,
-      payload: finalPayload,
-    });
+    const placeId = existing[0].business_place_id;
+    const payload = await fetchLbmGeogrid(providerScanId);
+    const lbmState = payload.state ?? null;
+
+    if (lbmState === "finished") {
+      const snapshot = await completeMapRankSnapshot({
+        providerScanId,
+        businessPlaceId: placeId,
+        payload,
+        client: db,
+      });
+      return {
+        providerScanId,
+        lbmState,
+        action: "stored",
+        snapshot,
+        message: "Scan complete — results stored in map_rank_snapshots",
+      };
+    }
+
+    if (lbmState === "error" || lbmState === "failed") {
+      await markMapRankSnapshotFailed({
+        providerScanId,
+        errorMessage: `LBM geogrid state=${lbmState}`,
+        raw: payload,
+        client: db,
+      });
+      return {
+        providerScanId,
+        lbmState,
+        action: "failed",
+        snapshot: null,
+        message: `Scan failed with LBM state=${lbmState}`,
+      };
+    }
+
+    // Still pending/processing — leave pending row as-is (or sync status text)
+    if (lbmState && lbmState !== existing[0].status) {
+      await db.query(
+        `update public.map_rank_snapshots
+         set status = $2
+         where provider = 'local_brand_manager'
+           and provider_scan_id = $1
+           and status in ('pending', 'processing')`,
+        [providerScanId, lbmState],
+      );
+    }
 
     return {
-      creditsEstimated,
-      providerScanId: created.id,
-      snapshot,
+      providerScanId,
+      lbmState,
+      action: "pending",
+      snapshot: null,
+      message: `Scan still ${lbmState ?? "pending"} — run check again later`,
     };
-  } catch (error) {
-    await markMapRankSnapshotFailed({
-      providerScanId: created.id,
-      errorMessage: error instanceof Error ? error.message : String(error),
-    });
-    throw error;
+  } finally {
+    await db.end();
   }
+}
+
+/** @deprecated Use startMapRankScan + checkLbmGeogridOnce (no long polling). */
+export async function runAndStoreMapRankScan(input: {
+  businessId: string;
+  businessName: string;
+  googlePlaceId: string;
+  latitude: number;
+  longitude: number;
+  searchTerm: string;
+  gridSize: number;
+  spacingValue: number;
+  spacingUnit: "miles" | "meters";
+}): Promise<{
+  creditsEstimated: number;
+  providerScanId: string;
+  snapshotId: string;
+  status: "pending";
+}> {
+  return startMapRankScan(input);
 }
 
 export async function getLatestMapRankSnapshotForBusiness(

@@ -43,3 +43,13 @@ export function formatNullable(
     maximumFractionDigits: options?.digits ?? 2,
   });
 }
+
+/** Grid ranks (AGR / ATGR): always 2 decimal places, or em dash if missing. */
+export function formatGridRank(
+  value: number | string | null | undefined,
+): string {
+  if (value === null || value === undefined || value === "") return "—";
+  const num = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(num)) return "—";
+  return num.toFixed(2);
+}

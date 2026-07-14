@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { getDashboardBusinessById } from "@/lib/dashboard-queries";
-import { formatNullable } from "@/lib/format";
+import { formatNullable, formatGridRank } from "@/lib/format";
 import { ReviewCountChart } from "@/components/dashboard/review-count-chart";
 import { MapRankGrid } from "@/components/dashboard/map-rank-grid";
 import { SCORE_MODEL_STATUS } from "@/lib/dashboard-types";
@@ -318,16 +318,12 @@ export default async function BusinessDetailPage({
                 />
                 <Metric
                   label="Average Grid Rank"
-                  value={formatNullable(business.mapRank.averageGridRank, {
-                    kind: "number",
-                    digits: 2,
-                  })}
+                  value={formatGridRank(business.mapRank.averageGridRank)}
                 />
                 <Metric
                   label="Average Total Grid Rank"
-                  value={formatNullable(
+                  value={formatGridRank(
                     business.mapRank.averageTotalGridRank,
-                    { kind: "number", digits: 2 },
                   )}
                 />
                 <Metric
