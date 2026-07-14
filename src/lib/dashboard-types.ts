@@ -84,6 +84,19 @@ export type DashboardBusinessDetail = DashboardBusiness & {
     status: string | null;
     errorMessage: string | null;
   } | null;
+  seo: {
+    id: string;
+    provider: string;
+    domain: string;
+    snapshotDate: string;
+    domainRating: number | null;
+    referringDomains: number | null;
+    backlinks: number | null;
+    organicTraffic: number | null;
+    organicKeywords: number | null;
+    organicKeywordsTop3: number | null;
+    trafficValue: number | null;
+  } | null;
 };
 
 export type DashboardSummary = {

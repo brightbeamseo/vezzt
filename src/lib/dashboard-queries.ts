@@ -373,6 +373,48 @@ export async function getDashboardBusinessById(
       }
     | undefined;
 
+  const { data: seoRows, error: seoError } = await supabase
+    .from("seo_snapshots")
+    .select(
+      `
+      id,
+      provider,
+      domain,
+      snapshot_date,
+      domain_rating,
+      referring_domains,
+      backlinks,
+      organic_traffic,
+      organic_keywords,
+      organic_keywords_top3,
+      traffic_value
+    `,
+    )
+    .eq("business_id", id)
+    .order("snapshot_date", { ascending: false })
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  if (seoError) {
+    throw new Error(`Failed to load SEO snapshot for ${id}: ${seoError.message}`);
+  }
+
+  const seoRow = (seoRows ?? [])[0] as
+    | {
+        id: string;
+        provider: string;
+        domain: string;
+        snapshot_date: string;
+        domain_rating: number | string | null;
+        referring_domains: number | null;
+        backlinks: number | null;
+        organic_traffic: number | null;
+        organic_keywords: number | null;
+        organic_keywords_top3: number | null;
+        traffic_value: number | string | null;
+      }
+    | undefined;
+
   return {
     ...base,
     snapshots,
@@ -415,6 +457,21 @@ export async function getDashboardBusinessById(
             mapRankRow.status === "failed"
               ? (mapRankRow.raw_response?.error ?? "Scan failed")
               : null,
+        }
+      : null,
+    seo: seoRow
+      ? {
+          id: seoRow.id,
+          provider: seoRow.provider,
+          domain: seoRow.domain,
+          snapshotDate: seoRow.snapshot_date,
+          domainRating: toNumber(seoRow.domain_rating),
+          referringDomains: seoRow.referring_domains,
+          backlinks: seoRow.backlinks,
+          organicTraffic: seoRow.organic_traffic,
+          organicKeywords: seoRow.organic_keywords,
+          organicKeywordsTop3: seoRow.organic_keywords_top3,
+          trafficValue: toNumber(seoRow.traffic_value),
         }
       : null,
   };

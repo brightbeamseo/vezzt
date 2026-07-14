@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { getDashboardBusinessById } from "@/lib/dashboard-queries";
-import { formatNullable, formatGridRank } from "@/lib/format";
+import { formatNullable, formatGridRank, formatSeoMetric } from "@/lib/format";
 import { ReviewCountChart } from "@/components/dashboard/review-count-chart";
 import { MapRankGrid } from "@/components/dashboard/map-rank-grid";
 import { SCORE_MODEL_STATUS } from "@/lib/dashboard-types";
@@ -33,7 +33,7 @@ function Metric({
   label: string;
   value: string;
 }) {
-  const empty = value === "Not calculated";
+  const empty = value === "Not calculated" || value === "Not available";
   return (
     <div className="rounded-lg border border-neutral-200 bg-white px-3 py-3">
       <p className="text-[11px] font-medium uppercase tracking-wide text-neutral-500">
@@ -161,6 +161,62 @@ export default async function BusinessDetailPage({
     {
       label: "map_rank.provider_scan_id",
       value: business.mapRank?.providerScanId ?? "null",
+    },
+    {
+      label: "domain_rating",
+      value:
+        business.seo?.domainRating === null ||
+        business.seo?.domainRating === undefined
+          ? "null"
+          : String(business.seo.domainRating),
+    },
+    {
+      label: "organic_traffic",
+      value:
+        business.seo?.organicTraffic === null ||
+        business.seo?.organicTraffic === undefined
+          ? "null"
+          : String(business.seo.organicTraffic),
+    },
+    {
+      label: "organic_keywords",
+      value:
+        business.seo?.organicKeywords === null ||
+        business.seo?.organicKeywords === undefined
+          ? "null"
+          : String(business.seo.organicKeywords),
+    },
+    {
+      label: "organic_keywords_top3",
+      value:
+        business.seo?.organicKeywordsTop3 === null ||
+        business.seo?.organicKeywordsTop3 === undefined
+          ? "null"
+          : String(business.seo.organicKeywordsTop3),
+    },
+    {
+      label: "referring_domains",
+      value:
+        business.seo?.referringDomains === null ||
+        business.seo?.referringDomains === undefined
+          ? "null"
+          : String(business.seo.referringDomains),
+    },
+    {
+      label: "backlinks",
+      value:
+        business.seo?.backlinks === null ||
+        business.seo?.backlinks === undefined
+          ? "null"
+          : String(business.seo.backlinks),
+    },
+    {
+      label: "traffic_value",
+      value:
+        business.seo?.trafficValue === null ||
+        business.seo?.trafficValue === undefined
+          ? "null"
+          : String(business.seo.trafficValue),
     },
   ];
 
@@ -392,6 +448,75 @@ export default async function BusinessDetailPage({
                   <MapRankGrid ranks={business.mapRank.ranks} />
                 </div>
               </div>
+            </div>
+          )}
+        </section>
+
+        <section className="rounded-xl border border-neutral-200 bg-white p-5 shadow-sm">
+          <h2 className="text-sm font-semibold text-vezzt-950">
+            Digital Presence
+          </h2>
+          <p className="mt-1 text-xs text-neutral-500">
+            Ahrefs domain summary metrics. Missing values show as Not available —
+            zeros are only shown when Ahrefs returns them.
+          </p>
+
+          {!business.seo ? (
+            <p className="mt-4 text-sm text-neutral-500">
+              No SEO snapshot stored for this business yet.
+            </p>
+          ) : (
+            <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-3">
+              <Metric
+                label="Domain"
+                value={business.seo.domain || "Not available"}
+              />
+              <Metric
+                label="Domain Rating"
+                value={formatSeoMetric(business.seo.domainRating, {
+                  digits: 1,
+                })}
+              />
+              <Metric
+                label="Organic Traffic"
+                value={formatSeoMetric(business.seo.organicTraffic, {
+                  kind: "integer",
+                })}
+              />
+              <Metric
+                label="Organic Keywords"
+                value={formatSeoMetric(business.seo.organicKeywords, {
+                  kind: "integer",
+                })}
+              />
+              <Metric
+                label="Keywords in Positions 1–3"
+                value={formatSeoMetric(business.seo.organicKeywordsTop3, {
+                  kind: "integer",
+                })}
+              />
+              <Metric
+                label="Referring Domains"
+                value={formatSeoMetric(business.seo.referringDomains, {
+                  kind: "integer",
+                })}
+              />
+              <Metric
+                label="Backlinks"
+                value={formatSeoMetric(business.seo.backlinks, {
+                  kind: "integer",
+                })}
+              />
+              <Metric
+                label="Traffic Value"
+                value={formatSeoMetric(business.seo.trafficValue, {
+                  kind: "currency",
+                })}
+              />
+              <Metric
+                label="Snapshot Date"
+                value={business.seo.snapshotDate || "Not available"}
+              />
             </div>
           )}
         </section>

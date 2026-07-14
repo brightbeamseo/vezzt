@@ -53,3 +53,29 @@ export function formatGridRank(
   if (!Number.isFinite(num)) return "—";
   return num.toFixed(2);
 }
+
+/**
+ * SEO metric display — missing values are "Not available" (never invent zeros).
+ * Genuine API zeros still render as 0.
+ */
+export function formatSeoMetric(
+  value: number | string | null | undefined,
+  options?: { kind?: "currency" | "number" | "integer"; digits?: number },
+): string {
+  if (value === null || value === undefined || value === "") {
+    return "Not available";
+  }
+  const kind = options?.kind ?? "number";
+  const num = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(num)) return "Not available";
+
+  if (kind === "currency") {
+    return formatCurrency(num);
+  }
+  if (kind === "integer") {
+    return Math.round(num).toLocaleString("en-US");
+  }
+  return num.toLocaleString("en-US", {
+    maximumFractionDigits: options?.digits ?? 1,
+  });
+}
