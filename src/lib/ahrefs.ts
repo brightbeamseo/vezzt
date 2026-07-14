@@ -1,3 +1,6 @@
+import type { AnalysisMode } from "@/lib/companies";
+import { toAhrefsTargetMode } from "@/lib/companies";
+
 /**
  * Ahrefs API v3 client — summary metrics only (no page/keyword/backlink lists).
  *
@@ -35,6 +38,8 @@ export type AhrefsBatchResult = {
   rawResponse: unknown;
   unitsCost: number | null;
   endpoint: string;
+  analysisMode: AnalysisMode;
+  analysisTarget: string;
 };
 
 function getApiKey(): string {
@@ -78,12 +83,12 @@ function toNullableInt(value: unknown): number | null {
 }
 
 function rowToMetrics(
-  requestedDomain: string,
+  requestedTarget: string,
   row: Record<string, unknown>,
 ): AhrefsSummaryMetrics {
   const returnedUrl =
-    typeof row.url === "string" ? row.url : requestedDomain;
-  const domain = normalizeAhrefsDomain(returnedUrl) || requestedDomain;
+    typeof row.url === "string" ? row.url : requestedTarget;
+  const domain = normalizeAhrefsDomain(returnedUrl) || requestedTarget;
   return {
     domain,
     domainRating: toNullableNumber(row.domain_rating),
@@ -96,36 +101,36 @@ function rowToMetrics(
   };
 }
 
+export type AhrefsAnalysisTarget = {
+  analysisTarget: string;
+  analysisMode: AnalysisMode;
+};
+
 export type AhrefsMultiBatchResult = {
   endpoint: string;
   unitsCost: number | null;
   rawResponse: unknown;
-  /** Keyed by normalized request domain. */
-  byDomain: Map<string, AhrefsSummaryMetrics>;
+  /** Keyed by analysis_target string used in the request. */
+  byTarget: Map<string, AhrefsSummaryMetrics>;
 };
 
 /**
- * Pull summary SEO metrics for one or more domains via Batch Analysis.
- * Does not request top pages, keyword lists, or backlink lists.
+ * Pull summary SEO metrics for analysis targets via Batch Analysis.
+ * Uses each row's analysis_mode (domain / prefix / subdomain / exact_url).
  */
-export async function fetchAhrefsDomainSummaries(
-  domainInputs: string[],
+export async function fetchAhrefsAnalysisTargets(
+  targets: AhrefsAnalysisTarget[],
 ): Promise<AhrefsMultiBatchResult> {
-  const domains = [
-    ...new Set(
-      domainInputs.map((d) => normalizeAhrefsDomain(d)).filter(Boolean),
-    ),
-  ];
-  if (domains.length === 0) {
-    throw new Error("At least one domain is required.");
+  if (targets.length === 0) {
+    throw new Error("At least one analysis target is required.");
   }
 
   const endpoint = `${AHREFS_BASE}/batch-analysis/batch-analysis`;
   const body = {
     select: [...BATCH_SELECT],
-    targets: domains.map((domain) => ({
-      url: domain,
-      mode: "domain" as const,
+    targets: targets.map((t) => ({
+      url: t.analysisTarget,
+      mode: toAhrefsTargetMode(t.analysisMode),
       protocol: "both" as const,
     })),
   };
@@ -153,55 +158,86 @@ export async function fetchAhrefsDomainSummaries(
     );
   }
 
-  const targets = (
+  const responseTargets = (
     rawResponse as { targets?: Record<string, unknown>[] } | null
   )?.targets;
-  if (!Array.isArray(targets) || targets.length === 0) {
+  if (!Array.isArray(responseTargets) || responseTargets.length === 0) {
     throw new Error(
       `Ahrefs returned no target rows: ${JSON.stringify(rawResponse).slice(0, 500)}`,
     );
   }
 
-  const byDomain = new Map<string, AhrefsSummaryMetrics>();
+  const byTarget = new Map<string, AhrefsSummaryMetrics>();
 
-  // Prefer index alignment with request order; also index by returned URL.
-  for (let i = 0; i < targets.length; i++) {
-    const row = targets[i]!;
-    const requested = domains[i] ?? normalizeAhrefsDomain(String(row.url ?? ""));
+  for (let i = 0; i < responseTargets.length; i++) {
+    const row = responseTargets[i]!;
+    const requested = targets[i]?.analysisTarget ?? String(row.url ?? "");
     const metrics = rowToMetrics(requested, row);
-    if (requested) byDomain.set(requested, { ...metrics, domain: requested });
-    byDomain.set(metrics.domain, {
-      ...metrics,
-      domain: metrics.domain,
-    });
+    byTarget.set(requested, metrics);
   }
 
   return {
     endpoint,
     unitsCost: Number.isFinite(unitsCost) ? unitsCost : null,
     rawResponse,
-    byDomain,
+    byTarget,
+  };
+}
+
+/** @deprecated Prefer fetchAhrefsAnalysisTargets — kept for domain-only scripts. */
+export async function fetchAhrefsDomainSummaries(
+  domainInputs: string[],
+): Promise<{
+  endpoint: string;
+  unitsCost: number | null;
+  rawResponse: unknown;
+  byDomain: Map<string, AhrefsSummaryMetrics>;
+}> {
+  const targets = domainInputs.map((d) => ({
+    analysisTarget: normalizeAhrefsDomain(d),
+    analysisMode: "domain" as const,
+  }));
+  const result = await fetchAhrefsAnalysisTargets(targets);
+  return {
+    endpoint: result.endpoint,
+    unitsCost: result.unitsCost,
+    rawResponse: result.rawResponse,
+    byDomain: result.byTarget,
   };
 }
 
 /**
- * Pull summary SEO metrics for one domain via Batch Analysis.
+ * Pull summary SEO metrics for one analysis target.
  */
-export async function fetchAhrefsDomainSummary(
-  domainInput: string,
-): Promise<AhrefsBatchResult> {
-  const domain = normalizeAhrefsDomain(domainInput);
-  const multi = await fetchAhrefsDomainSummaries([domain]);
-  const metrics = multi.byDomain.get(domain);
+export async function fetchAhrefsByAnalysis(input: {
+  analysisTarget: string;
+  analysisMode: AnalysisMode;
+}): Promise<AhrefsBatchResult> {
+  const multi = await fetchAhrefsAnalysisTargets([input]);
+  const metrics = multi.byTarget.get(input.analysisTarget);
   if (!metrics) {
-    throw new Error(`Ahrefs returned no metrics for domain=${domain}`);
+    throw new Error(
+      `Ahrefs returned no metrics for target=${input.analysisTarget} mode=${input.analysisMode}`,
+    );
   }
   return {
     endpoint: multi.endpoint,
     unitsCost: multi.unitsCost,
     rawResponse: multi.rawResponse,
     metrics,
+    analysisMode: input.analysisMode,
+    analysisTarget: input.analysisTarget,
   };
+}
+
+/** @deprecated Prefer fetchAhrefsByAnalysis with analysis_mode from DB. */
+export async function fetchAhrefsDomainSummary(
+  domainInput: string,
+): Promise<AhrefsBatchResult> {
+  return fetchAhrefsByAnalysis({
+    analysisTarget: normalizeAhrefsDomain(domainInput),
+    analysisMode: "domain",
+  });
 }
 
 export async function fetchAhrefsUsage(): Promise<unknown> {

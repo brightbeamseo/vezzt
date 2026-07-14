@@ -218,6 +218,26 @@ export default async function BusinessDetailPage({
           ? "null"
           : String(business.seo.trafficValue),
     },
+    {
+      label: "company_id",
+      value: business.company?.id ?? "null",
+    },
+    {
+      label: "company_name",
+      value: business.company?.companyName ?? "null",
+    },
+    {
+      label: "company_type",
+      value: business.company?.companyType ?? "null",
+    },
+    {
+      label: "analysis_mode",
+      value: business.analysisMode ?? "null",
+    },
+    {
+      label: "analysis_target",
+      value: business.analysisTarget ?? "null",
+    },
   ];
 
   return (
@@ -294,6 +314,75 @@ export default async function BusinessDetailPage({
               }
             />
           </dl>
+        </section>
+
+        <section className="rounded-xl border border-neutral-200 bg-white p-5 shadow-sm">
+          <h2 className="text-sm font-semibold text-vezzt-950">Company</h2>
+          <p className="mt-1 text-xs text-neutral-500">
+            Brand / legal company ownership. Each Google Place ID remains its own
+            business location.
+          </p>
+          {!business.company ? (
+            <p className="mt-4 text-sm text-neutral-500">
+              No company linked yet.
+            </p>
+          ) : (
+            <div className="mt-4 space-y-4">
+              <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <Field
+                  label="Company Name"
+                  value={business.company.companyName}
+                />
+                <Field
+                  label="Company Type"
+                  value={business.company.companyType}
+                />
+                <Field
+                  label="Root Domain"
+                  value={business.company.rootDomain ?? "—"}
+                />
+                <Field
+                  label="Analysis Mode"
+                  value={business.analysisMode ?? "—"}
+                />
+                <Field
+                  label="Analysis Target"
+                  value={
+                    business.analysisTarget ? (
+                      <span className="break-all font-mono text-xs">
+                        {business.analysisTarget}
+                      </span>
+                    ) : (
+                      "—"
+                    )
+                  }
+                />
+              </dl>
+
+              {business.siblingLocations.length > 0 ? (
+                <div>
+                  <h3 className="text-xs font-medium uppercase tracking-wide text-neutral-500">
+                    Other Locations
+                  </h3>
+                  <ul className="mt-2 divide-y divide-neutral-100 rounded-lg border border-neutral-200">
+                    {business.siblingLocations.map((loc) => (
+                      <li key={loc.id} className="px-3 py-2 text-sm">
+                        <Link
+                          href={`/businesses/${loc.id}`}
+                          className="font-medium text-vezzt-700 underline-offset-2 hover:underline"
+                        >
+                          {loc.name}
+                        </Link>
+                        <span className="text-neutral-500">
+                          {loc.city ? ` · ${loc.city}` : ""}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </div>
+          )}
         </section>
 
         <section className="rounded-xl border border-neutral-200 bg-white p-5 shadow-sm">

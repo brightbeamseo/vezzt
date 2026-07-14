@@ -97,6 +97,21 @@ export type DashboardBusinessDetail = DashboardBusiness & {
     organicKeywordsTop3: number | null;
     trafficValue: number | null;
   } | null;
+  company: {
+    id: string;
+    companyName: string;
+    companyType: string;
+    rootDomain: string | null;
+    website: string | null;
+  } | null;
+  analysisTarget: string | null;
+  analysisMode: string | null;
+  siblingLocations: {
+    id: string;
+    name: string;
+    city: string | null;
+    websiteUrl: string | null;
+  }[];
 };
 
 export type DashboardSummary = {

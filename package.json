@@ -33,6 +33,8 @@
     "enrich:point-roofing-ahrefs": "tsx scripts/enrich-point-roofing-ahrefs.ts",
     "enrich:boise-roofing-ahrefs": "tsx scripts/enrich-boise-roofing-ahrefs.ts",
     "db:apply-seo": "tsx scripts/apply-sql.ts supabase/migrations/20250714200000_seo_snapshots.sql",
+    "db:apply-companies": "tsx scripts/apply-sql.ts supabase/migrations/20250714210000_companies.sql",
+    "backfill:companies": "tsx scripts/backfill-companies.ts",
     "verify:supabase": "tsx scripts/verify-supabase.ts"
   },
   "dependencies": {

@@ -1,18 +1,17 @@
 /**
  * Bulk Ahrefs SEO enrichment for qualified Boise Metro roofers (100+ reviews).
+ * Uses businesses.analysis_target + analysis_mode (not always root domain).
  *
  * Usage:
  *   npm run enrich:boise-roofing-ahrefs
- *
- * Append-only seo_snapshots inserts. Does not call Apify or LBM.
  */
 import { config } from "dotenv";
 import { connectAdminPg } from "../src/lib/admin-db";
 import {
-  fetchAhrefsDomainSummaries,
+  fetchAhrefsAnalysisTargets,
   fetchAhrefsUsage,
-  normalizeAhrefsDomain,
 } from "../src/lib/ahrefs";
+import type { AnalysisMode } from "../src/lib/companies";
 import { getMarket, normalizeCityName } from "../src/lib/markets";
 import { insertSeoSnapshot } from "../src/lib/seo-snapshots";
 
@@ -23,23 +22,9 @@ type Candidate = {
   name: string;
   city: string | null;
   website_url: string | null;
+  analysis_target: string | null;
+  analysis_mode: AnalysisMode | null;
   review_count: number | null;
-};
-
-type SuccessRow = {
-  businessId: string;
-  name: string;
-  city: string | null;
-  websiteUrl: string;
-  domain: string;
-  snapshotId: string;
-  domainRating: number | null;
-  organicTraffic: number | null;
-  organicKeywords: number | null;
-  organicKeywordsTop3: number | null;
-  referringDomains: number | null;
-  backlinks: number | null;
-  trafficValue: number | null;
 };
 
 function usageUnits(payload: unknown): number | null {
@@ -62,6 +47,8 @@ async function main() {
         b.name,
         b.city,
         b.website_url,
+        b.analysis_target,
+        b.analysis_mode,
         latest.review_count
       from public.businesses b
       left join lateral (
@@ -83,31 +70,26 @@ async function main() {
     await db.end();
   }
 
-  const skippedMissingWebsite = candidates.filter(
-    (c) => !c.website_url || !c.website_url.trim(),
+  const skippedMissingTarget = candidates.filter(
+    (c) => !c.analysis_target || !c.analysis_mode,
   );
-  const withWebsite = candidates.filter(
-    (c) => c.website_url && c.website_url.trim(),
-  );
+  const ready = candidates.filter((c) => c.analysis_target && c.analysis_mode);
 
   console.log(
     JSON.stringify(
       {
         selected: candidates.length,
-        withWebsite: withWebsite.length,
-        skippedMissingWebsite: skippedMissingWebsite.map((c) => ({
+        ready: ready.length,
+        skippedMissingTarget: skippedMissingTarget.map((c) => ({
           id: c.id,
           name: c.name,
-          city: c.city,
-          reviewCount: c.review_count,
-        })),
-        businesses: withWebsite.map((c) => ({
-          id: c.id,
-          name: c.name,
-          city: c.city,
           website: c.website_url,
-          reviewCount: c.review_count,
-          domain: normalizeAhrefsDomain(c.website_url!),
+        })),
+        businesses: ready.map((c) => ({
+          id: c.id,
+          name: c.name,
+          analysisTarget: c.analysis_target,
+          analysisMode: c.analysis_mode,
         })),
       },
       null,
@@ -115,31 +97,28 @@ async function main() {
     ),
   );
 
-  if (withWebsite.length === 0) {
+  if (ready.length === 0) {
     console.log(
       JSON.stringify({
         ok: true,
-        message: "No businesses with websites to enrich.",
-        totalUnitsConsumed: 0,
+        message: "No businesses with analysis targets to enrich.",
         successful: 0,
         failed: 0,
-        skippedMissingWebsite: skippedMissingWebsite.length,
+        skippedMissingTarget: skippedMissingTarget.length,
         snapshotsInserted: 0,
       }),
     );
     return;
   }
 
-  const domainByBusiness = withWebsite.map((c) => ({
-    ...c,
-    domain: normalizeAhrefsDomain(c.website_url!),
-  }));
-
   const usageBeforeRaw = await fetchAhrefsUsage();
   const unitsBefore = usageUnits(usageBeforeRaw);
 
-  const batch = await fetchAhrefsDomainSummaries(
-    domainByBusiness.map((c) => c.domain),
+  const batch = await fetchAhrefsAnalysisTargets(
+    ready.map((c) => ({
+      analysisTarget: c.analysis_target!,
+      analysisMode: c.analysis_mode!,
+    })),
   );
 
   const usageAfterRaw = await fetchAhrefsUsage();
@@ -150,18 +129,17 @@ async function main() {
       : (batch.unitsCost ?? 0);
 
   const snapshotDate = new Date().toISOString().slice(0, 10);
-  const successes: SuccessRow[] = [];
-  const failures: { businessId: string; name: string; domain: string; error: string }[] =
-    [];
+  const successes: unknown[] = [];
+  const failures: unknown[] = [];
 
-  for (const business of domainByBusiness) {
-    const metrics = batch.byDomain.get(business.domain);
+  for (const business of ready) {
+    const metrics = batch.byTarget.get(business.analysis_target!);
     if (!metrics) {
       failures.push({
         businessId: business.id,
         name: business.name,
-        domain: business.domain,
-        error: "No Ahrefs row returned for domain",
+        analysisTarget: business.analysis_target,
+        error: "No Ahrefs row returned for analysis target",
       });
       continue;
     }
@@ -169,45 +147,35 @@ async function main() {
     try {
       const snapshot = await insertSeoSnapshot({
         businessId: business.id,
-        domain: business.domain,
+        domain: metrics.domain,
         snapshotDate,
-        metrics: { ...metrics, domain: business.domain },
+        metrics,
         rawResponse: {
           endpoint: batch.endpoint,
+          analysisTarget: business.analysis_target,
+          analysisMode: business.analysis_mode,
           unitsCostBatch: batch.unitsCost,
           fetchedAt: new Date().toISOString(),
           usageBefore: usageBeforeRaw,
           usageAfter: usageAfterRaw,
-          ahrefsTarget: batch.byDomain.get(business.domain)
-            ? {
-                domain: business.domain,
-                metrics,
-              }
-            : null,
           ahrefsBatch: batch.rawResponse,
         },
       });
 
       successes.push({
-        businessId: business.id,
         name: business.name,
-        city: business.city,
-        websiteUrl: business.website_url!,
-        domain: business.domain,
-        snapshotId: snapshot.id,
+        analysisTarget: business.analysis_target,
+        analysisMode: business.analysis_mode,
+        domain: snapshot.domain,
         domainRating: snapshot.domainRating,
         organicTraffic: snapshot.organicTraffic,
-        organicKeywords: snapshot.organicKeywords,
-        organicKeywordsTop3: snapshot.organicKeywordsTop3,
-        referringDomains: snapshot.referringDomains,
-        backlinks: snapshot.backlinks,
-        trafficValue: snapshot.trafficValue,
+        snapshotId: snapshot.id,
       });
     } catch (error) {
       failures.push({
         businessId: business.id,
         name: business.name,
-        domain: business.domain,
+        analysisTarget: business.analysis_target,
         error: error instanceof Error ? error.message : String(error),
       });
     }
@@ -220,31 +188,12 @@ async function main() {
         endpoint: batch.endpoint,
         unitsHeader: batch.unitsCost,
         totalUnitsConsumed,
-        unitsBefore,
-        unitsAfter,
         successful: successes.length,
         failed: failures.length,
-        skippedMissingWebsite: skippedMissingWebsite.length,
+        skippedMissingTarget: skippedMissingTarget.length,
         snapshotsInserted: successes.length,
         failures,
-        skipped: skippedMissingWebsite.map((c) => ({
-          id: c.id,
-          name: c.name,
-          reason: "missing_website",
-        })),
-        results: successes.map((s) => ({
-          name: s.name,
-          city: s.city,
-          domain: s.domain,
-          domainRating: s.domainRating,
-          organicTraffic: s.organicTraffic,
-          organicKeywords: s.organicKeywords,
-          organicKeywordsTop3: s.organicKeywordsTop3,
-          referringDomains: s.referringDomains,
-          backlinks: s.backlinks,
-          trafficValue: s.trafficValue,
-          snapshotId: s.snapshotId,
-        })),
+        results: successes,
       },
       null,
       2,

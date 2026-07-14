@@ -70,6 +70,25 @@ type BusinessQueryRow = {
   qualification_confidence: number | string | null;
   target_sector: string | null;
   review_threshold_met: boolean;
+  company_id?: string | null;
+  analysis_target?: string | null;
+  analysis_mode?: string | null;
+  companies?:
+    | {
+        id: string;
+        company_name: string;
+        company_type: string;
+        root_domain: string | null;
+        website: string | null;
+      }
+    | {
+        id: string;
+        company_name: string;
+        company_type: string;
+        root_domain: string | null;
+        website: string | null;
+      }[]
+    | null;
   business_metrics: MetricsRow[] | MetricsRow | null;
   business_enrichment?: EnrichmentRow[] | EnrichmentRow | null;
   review_snapshots: SnapshotRow[] | null;
@@ -265,6 +284,16 @@ export async function getDashboardBusinessById(
       qualification_confidence,
       target_sector,
       review_threshold_met,
+      company_id,
+      analysis_target,
+      analysis_mode,
+      companies (
+        id,
+        company_name,
+        company_type,
+        root_domain,
+        website
+      ),
       business_metrics (
         estimated_value_low,
         estimated_value_mid,
@@ -415,6 +444,38 @@ export async function getDashboardBusinessById(
       }
     | undefined;
 
+  const companyRow = asArray(row.companies)[0] ?? null;
+  const companyId = row.company_id ?? companyRow?.id ?? null;
+
+  let siblingLocations: {
+    id: string;
+    name: string;
+    city: string | null;
+    websiteUrl: string | null;
+  }[] = [];
+
+  if (companyId) {
+    const { data: siblings, error: siblingsError } = await supabase
+      .from("businesses")
+      .select("id, name, city, website_url")
+      .eq("company_id", companyId)
+      .neq("id", id)
+      .order("name", { ascending: true });
+
+    if (siblingsError) {
+      throw new Error(
+        `Failed to load sibling locations for ${id}: ${siblingsError.message}`,
+      );
+    }
+
+    siblingLocations = (siblings ?? []).map((s) => ({
+      id: s.id as string,
+      name: s.name as string,
+      city: (s.city as string | null) ?? null,
+      websiteUrl: (s.website_url as string | null) ?? null,
+    }));
+  }
+
   return {
     ...base,
     snapshots,
@@ -474,6 +535,18 @@ export async function getDashboardBusinessById(
           trafficValue: toNumber(seoRow.traffic_value),
         }
       : null,
+    company: companyRow
+      ? {
+          id: companyRow.id,
+          companyName: companyRow.company_name,
+          companyType: companyRow.company_type,
+          rootDomain: companyRow.root_domain,
+          website: companyRow.website,
+        }
+      : null,
+    analysisTarget: row.analysis_target ?? null,
+    analysisMode: row.analysis_mode ?? null,
+    siblingLocations,
   };
 }
 
