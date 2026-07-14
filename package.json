@@ -24,6 +24,8 @@
     "report:discovery": "tsx scripts/discovery-report.ts",
     "db:apply-monitoring": "tsx scripts/apply-sql.ts supabase/migrations/20250713180000_monitoring_tiers.sql",
     "db:apply-monitoring-tiers": "tsx scripts/apply-sql.ts supabase/migrations/20250713190000_monitoring_two_tiers.sql",
+    "db:apply-geogrid": "tsx scripts/apply-sql.ts supabase/migrations/20250714180000_geogrid_snapshots.sql",
+    "store:lbm-geogrid": "tsx scripts/store-lbm-geogrid.ts",
     "verify:supabase": "tsx scripts/verify-supabase.ts"
   },
   "dependencies": {
