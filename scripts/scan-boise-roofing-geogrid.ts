@@ -117,6 +117,7 @@ async function main() {
         gridSize: GRID_SIZE,
         spacingValue: SPACING,
         spacingUnit: "miles",
+        allowOffHoursOverride: process.argv.includes("--allow-off-hours"),
       });
 
       const row = {
