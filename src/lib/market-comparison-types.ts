@@ -74,6 +74,13 @@ export type MarketComparisonColumnId =
   | "zipOwnerOccupiedRate"
   | "zipMedianHouseholdIncome"
   | "zipMedianHomeValue"
+  | "metroPopulation"
+  | "metroHouseholds"
+  | "metroHousingUnits"
+  | "metroOwnerOccupiedUnits"
+  | "metroOwnerOccupiedRate"
+  | "metroMedianHouseholdIncome"
+  | "metroMedianHomeValue"
   | "businessStrength"
   | "growthScore"
   | "marketStrength"
@@ -257,6 +264,55 @@ export const MARKET_COMPARISON_COLUMNS: MarketComparisonColumnDef[] = [
     defaultVisible: true,
   },
   {
+    id: "metroPopulation",
+    label: "Metro Population",
+    group: "Census Metro",
+    numeric: true,
+    defaultVisible: true,
+  },
+  {
+    id: "metroHouseholds",
+    label: "Metro Households",
+    group: "Census Metro",
+    numeric: true,
+    defaultVisible: true,
+  },
+  {
+    id: "metroHousingUnits",
+    label: "Metro Housing Units",
+    group: "Census Metro",
+    numeric: true,
+    defaultVisible: true,
+  },
+  {
+    id: "metroOwnerOccupiedUnits",
+    label: "Metro Owner Occupied",
+    group: "Census Metro",
+    numeric: true,
+    defaultVisible: true,
+  },
+  {
+    id: "metroOwnerOccupiedRate",
+    label: "Metro Owner Rate",
+    group: "Census Metro",
+    numeric: true,
+    defaultVisible: true,
+  },
+  {
+    id: "metroMedianHouseholdIncome",
+    label: "Metro Median Income",
+    group: "Census Metro",
+    numeric: true,
+    defaultVisible: true,
+  },
+  {
+    id: "metroMedianHomeValue",
+    label: "Metro Median Home Value",
+    group: "Census Metro",
+    numeric: true,
+    defaultVisible: true,
+  },
+  {
     id: "zipPopulation",
     label: "ZIP Population",
     group: "Census ZIP",
@@ -265,35 +321,35 @@ export const MARKET_COMPARISON_COLUMNS: MarketComparisonColumnDef[] = [
   },
   {
     id: "zipHouseholds",
-    label: "Households",
+    label: "ZIP Households",
     group: "Census ZIP",
     numeric: true,
     defaultVisible: true,
   },
   {
     id: "zipOwnerOccupiedHousingUnits",
-    label: "Owner-Occupied Housing Units",
+    label: "ZIP Owner Occupied",
     group: "Census ZIP",
     numeric: true,
     defaultVisible: true,
   },
   {
     id: "zipOwnerOccupiedRate",
-    label: "Owner-Occupied Rate",
+    label: "ZIP Owner Rate",
     group: "Census ZIP",
     numeric: true,
     defaultVisible: true,
   },
   {
     id: "zipMedianHouseholdIncome",
-    label: "Median Household Income",
+    label: "ZIP Median Income",
     group: "Census ZIP",
     numeric: true,
     defaultVisible: true,
   },
   {
     id: "zipMedianHomeValue",
-    label: "Median Home Value",
+    label: "ZIP Median Home Value",
     group: "Census ZIP",
     numeric: true,
     defaultVisible: true,
@@ -440,6 +496,13 @@ export type MarketComparisonRow = {
   zipMedianHomeValue: number | null;
   zipMedianYearStructureBuilt: number | null;
   zipDatasetYear: number | null;
+  metroPopulation: number | null;
+  metroHouseholds: number | null;
+  metroHousingUnits: number | null;
+  metroOwnerOccupiedUnits: number | null;
+  metroOwnerOccupiedRate: number | null;
+  metroMedianHouseholdIncome: number | null;
+  metroMedianHomeValue: number | null;
   hasAhrefs: boolean;
   hasGeogrid: boolean;
   hasMultipleReviewSnapshots: boolean;

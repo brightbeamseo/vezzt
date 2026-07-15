@@ -461,8 +461,9 @@ export function MarketComparisonDashboard({ payload }: Props) {
               Market Overview
             </h2>
             <p className="mt-0.5 text-xs text-neutral-500">
-              Shared US Census ACS metro statistics for the selected market —
-              shown once, not repeated in each business row.
+              Shared US Census ACS metro statistics — also shown as Census Metro
+              columns in the table next to each business&apos;s Census ZIP
+              (office) values.
             </p>
           </div>
         </div>
@@ -1133,6 +1134,28 @@ function cellExport(
       return row.zipMedianHomeValue == null
         ? ""
         : String(row.zipMedianHomeValue);
+    case "metroPopulation":
+      return row.metroPopulation == null ? "" : String(row.metroPopulation);
+    case "metroHouseholds":
+      return row.metroHouseholds == null ? "" : String(row.metroHouseholds);
+    case "metroHousingUnits":
+      return row.metroHousingUnits == null ? "" : String(row.metroHousingUnits);
+    case "metroOwnerOccupiedUnits":
+      return row.metroOwnerOccupiedUnits == null
+        ? ""
+        : String(row.metroOwnerOccupiedUnits);
+    case "metroOwnerOccupiedRate":
+      return row.metroOwnerOccupiedRate == null
+        ? ""
+        : String(row.metroOwnerOccupiedRate);
+    case "metroMedianHouseholdIncome":
+      return row.metroMedianHouseholdIncome == null
+        ? ""
+        : String(row.metroMedianHouseholdIncome);
+    case "metroMedianHomeValue":
+      return row.metroMedianHomeValue == null
+        ? ""
+        : String(row.metroMedianHomeValue);
     case "missingFields":
       return row.missingFields.join("; ");
     case "latestDataRefresh":
@@ -1500,6 +1523,48 @@ function renderCell(
           {row.zipMedianHomeValue == null
             ? "—"
             : `$${Math.round(row.zipMedianHomeValue).toLocaleString("en-US")}`}
+        </span>
+      );
+    case "metroPopulation":
+      return (
+        <span className="tabular-nums">{formatInt(row.metroPopulation)}</span>
+      );
+    case "metroHouseholds":
+      return (
+        <span className="tabular-nums">{formatInt(row.metroHouseholds)}</span>
+      );
+    case "metroHousingUnits":
+      return (
+        <span className="tabular-nums">{formatInt(row.metroHousingUnits)}</span>
+      );
+    case "metroOwnerOccupiedUnits":
+      return (
+        <span className="tabular-nums">
+          {formatInt(row.metroOwnerOccupiedUnits)}
+        </span>
+      );
+    case "metroOwnerOccupiedRate":
+      return (
+        <span className="tabular-nums">
+          {row.metroOwnerOccupiedRate == null
+            ? "—"
+            : `${row.metroOwnerOccupiedRate.toFixed(1)}%`}
+        </span>
+      );
+    case "metroMedianHouseholdIncome":
+      return (
+        <span className="tabular-nums">
+          {row.metroMedianHouseholdIncome == null
+            ? "—"
+            : `$${Math.round(row.metroMedianHouseholdIncome).toLocaleString("en-US")}`}
+        </span>
+      );
+    case "metroMedianHomeValue":
+      return (
+        <span className="tabular-nums">
+          {row.metroMedianHomeValue == null
+            ? "—"
+            : `$${Math.round(row.metroMedianHomeValue).toLocaleString("en-US")}`}
         </span>
       );
     case "missingFields":

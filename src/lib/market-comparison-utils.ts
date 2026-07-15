@@ -105,6 +105,20 @@ export function getNumericSortValue(
       return row.zipMedianHouseholdIncome;
     case "zipMedianHomeValue":
       return row.zipMedianHomeValue;
+    case "metroPopulation":
+      return row.metroPopulation;
+    case "metroHouseholds":
+      return row.metroHouseholds;
+    case "metroHousingUnits":
+      return row.metroHousingUnits;
+    case "metroOwnerOccupiedUnits":
+      return row.metroOwnerOccupiedUnits;
+    case "metroOwnerOccupiedRate":
+      return row.metroOwnerOccupiedRate;
+    case "metroMedianHouseholdIncome":
+      return row.metroMedianHouseholdIncome;
+    case "metroMedianHomeValue":
+      return row.metroMedianHomeValue;
     default:
       return null;
   }

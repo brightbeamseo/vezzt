@@ -321,6 +321,13 @@ function mapSignalRow(raw: SignalRow): Omit<MarketComparisonRow, "percentiles"> 
     zipMedianHomeValue: toNumber(raw.zip_median_home_value),
     zipMedianYearStructureBuilt: toNumber(raw.zip_median_year_structure_built),
     zipDatasetYear: raw.zip_dataset_year,
+    metroPopulation: null,
+    metroHouseholds: null,
+    metroHousingUnits: null,
+    metroOwnerOccupiedUnits: null,
+    metroOwnerOccupiedRate: null,
+    metroMedianHouseholdIncome: null,
+    metroMedianHomeValue: null,
     hasAhrefs,
     hasGeogrid,
     hasMultipleReviewSnapshots: reviewSnapshotCount >= 2,
@@ -449,10 +456,21 @@ export async function getMarketComparisonSignals(input: {
       }
     : null;
 
+  const rowsWithMetro = rows.map((row) => ({
+    ...row,
+    metroPopulation: marketOverview?.population ?? null,
+    metroHouseholds: marketOverview?.households ?? null,
+    metroHousingUnits: marketOverview?.housingUnits ?? null,
+    metroOwnerOccupiedUnits: marketOverview?.ownerOccupiedUnits ?? null,
+    metroOwnerOccupiedRate: marketOverview?.ownerOccupiedRate ?? null,
+    metroMedianHouseholdIncome: marketOverview?.medianHouseholdIncome ?? null,
+    metroMedianHomeValue: marketOverview?.medianHomeValue ?? null,
+  }));
+
   return {
     marketId: input.marketId,
     sector: input.sector,
-    rows,
+    rows: rowsWithMetro,
     cities,
     duplicateBusinessIds,
     marketOverview,
