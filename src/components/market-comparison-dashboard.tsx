@@ -502,14 +502,14 @@ export function MarketComparisonDashboard({ payload }: Props) {
                   ),
                 },
                 {
-                  label: "Owner-Occupied Homes",
+                  label: "Owner Occupied Homes",
                   value: formatOverviewValue(
                     payload.marketOverview.ownerOccupiedUnits,
                     "int",
                   ),
                 },
                 {
-                  label: "Owner-Occupied Rate",
+                  label: "Owner Occupancy Rate",
                   value: formatOverviewValue(
                     payload.marketOverview.ownerOccupiedRate,
                     "rate",
@@ -530,17 +530,31 @@ export function MarketComparisonDashboard({ payload }: Props) {
                   ),
                 },
                 {
-                  label: "Median Year Structure Built",
+                  label: "Median Home Age",
                   value: formatOverviewValue(
                     payload.marketOverview.medianYearStructureBuilt,
                     "year",
                   ),
                 },
                 {
-                  label: "Census dataset year",
+                  label: "Dataset Year",
                   value: formatOverviewValue(
                     payload.marketOverview.datasetYear,
                     "year",
+                  ),
+                },
+                {
+                  label: "Businesses in Market",
+                  value: formatOverviewValue(
+                    payload.marketOverview.businessesInMarket,
+                    "int",
+                  ),
+                },
+                {
+                  label: "Qualified Businesses",
+                  value: formatOverviewValue(
+                    payload.marketOverview.qualifiedBusinesses,
+                    "int",
                   ),
                 },
               ] as const

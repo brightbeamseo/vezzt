@@ -36,6 +36,7 @@ async function main() {
        from public.businesses b
        left join public.markets m on m.id = b.market_id
        where m.market_slug = 'boise-metro'
+         and b.target_sector = 'roofing'
          and b.postal_code is not null
          and trim(b.postal_code) <> ''
        order by b.postal_code`,

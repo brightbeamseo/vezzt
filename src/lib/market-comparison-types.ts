@@ -489,5 +489,7 @@ export type MarketComparisonPayload = {
     datasetYear: number | null;
     dataSource: string | null;
     lastUpdated: string | null;
+    businessesInMarket: number;
+    qualifiedBusinesses: number;
   } | null;
 };

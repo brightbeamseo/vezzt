@@ -417,6 +417,11 @@ export async function getMarketComparisonSignals(input: {
     throw new Error(`Failed to load markets overview: ${marketError.message}`);
   }
 
+  const businessesInMarket = rows.length;
+  const qualifiedBusinesses = rows.filter(
+    (r) => r.qualificationStatus === "qualified",
+  ).length;
+
   const marketOverview = marketData
     ? {
         id: marketData.id as string,
@@ -439,6 +444,8 @@ export async function getMarketComparisonSignals(input: {
         datasetYear: (marketData.dataset_year as number | null) ?? null,
         dataSource: (marketData.data_source as string | null) ?? null,
         lastUpdated: (marketData.last_updated as string | null) ?? null,
+        businessesInMarket,
+        qualifiedBusinesses,
       }
     : null;
 

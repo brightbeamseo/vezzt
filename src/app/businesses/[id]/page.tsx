@@ -920,18 +920,18 @@ export default async function BusinessDetailPage({
             business row.
           </p>
           {!business.market ? (
-            <p className="mt-4 text-sm text-neutral-500">Not available.</p>
+            <p className="mt-4 text-sm text-neutral-500">Not available</p>
           ) : (
             <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-3">
               <Metric
-                label="Market"
-                value={business.market.marketName || "Not available."}
+                label="Market Name"
+                value={business.market.marketName || "Not available"}
               />
               <Metric
                 label="Population"
                 value={
                   business.market.population == null
-                    ? "Not available."
+                    ? "Not available"
                     : business.market.population.toLocaleString("en-US")
                 }
               />
@@ -939,7 +939,7 @@ export default async function BusinessDetailPage({
                 label="Households"
                 value={
                   business.market.households == null
-                    ? "Not available."
+                    ? "Not available"
                     : business.market.households.toLocaleString("en-US")
                 }
               />
@@ -947,23 +947,23 @@ export default async function BusinessDetailPage({
                 label="Housing Units"
                 value={
                   business.market.housingUnits == null
-                    ? "Not available."
+                    ? "Not available"
                     : business.market.housingUnits.toLocaleString("en-US")
                 }
               />
               <Metric
-                label="Owner-Occupied Homes"
+                label="Owner Occupied Homes"
                 value={
                   business.market.ownerOccupiedUnits == null
-                    ? "Not available."
+                    ? "Not available"
                     : business.market.ownerOccupiedUnits.toLocaleString("en-US")
                 }
               />
               <Metric
-                label="Owner-Occupied Rate"
+                label="Owner Occupancy Rate"
                 value={
                   business.market.ownerOccupiedRate == null
-                    ? "Not available."
+                    ? "Not available"
                     : `${business.market.ownerOccupiedRate.toFixed(1)}%`
                 }
               />
@@ -971,7 +971,7 @@ export default async function BusinessDetailPage({
                 label="Median Household Income"
                 value={
                   business.market.medianHouseholdIncome == null
-                    ? "Not available."
+                    ? "Not available"
                     : formatCurrency(business.market.medianHouseholdIncome)
                 }
               />
@@ -979,25 +979,25 @@ export default async function BusinessDetailPage({
                 label="Median Home Value"
                 value={
                   business.market.medianHomeValue == null
-                    ? "Not available."
+                    ? "Not available"
                     : formatCurrency(business.market.medianHomeValue)
                 }
               />
               <Metric
-                label="Median Year Structure Built"
+                label="Median Home Age"
                 value={
                   business.market.medianYearStructureBuilt == null
-                    ? "Not available."
+                    ? "Not available"
                     : String(
                         Math.round(business.market.medianYearStructureBuilt),
                       )
                 }
               />
               <Metric
-                label="Census dataset year"
+                label="Dataset Year"
                 value={
                   business.market.datasetYear == null
-                    ? "Not available."
+                    ? "Not available"
                     : String(business.market.datasetYear)
                 }
               />
@@ -1007,25 +1007,25 @@ export default async function BusinessDetailPage({
 
         <section className="rounded-xl border border-neutral-200 bg-white p-5 shadow-sm">
           <h2 className="text-sm font-semibold text-vezzt-950">
-            Market Area Snapshot
+            Office ZIP Snapshot
           </h2>
           <p className="mt-1 text-xs text-neutral-500">
-            US Census ACS ZIP Code Tabulation Area (ZCTA) demographics for this
-            business postal code. Raw reference data only — not used for ranking.
+            US Census ACS demographics for this business office ZIP (ZCTA).
+            Independent from metro market stats — office location only.
           </p>
           {!business.zipStats ? (
-            <p className="mt-4 text-sm text-neutral-500">
-              No Census ZCTA data linked for ZIP{" "}
-              {business.postalCode?.trim() || "—"}.
-            </p>
+            <p className="mt-4 text-sm text-neutral-500">Not available</p>
           ) : (
             <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-3">
-              <Metric label="ZIP Code" value={business.zipStats.zipCode} />
               <Metric
-                label="ZIP Population"
+                label="ZIP Code"
+                value={business.zipStats.zipCode || "Not available"}
+              />
+              <Metric
+                label="Population"
                 value={
                   business.zipStats.population == null
-                    ? "—"
+                    ? "Not available"
                     : business.zipStats.population.toLocaleString("en-US")
                 }
               />
@@ -1033,7 +1033,7 @@ export default async function BusinessDetailPage({
                 label="Households"
                 value={
                   business.zipStats.households == null
-                    ? "—"
+                    ? "Not available"
                     : business.zipStats.households.toLocaleString("en-US")
                 }
               />
@@ -1041,25 +1041,25 @@ export default async function BusinessDetailPage({
                 label="Housing Units"
                 value={
                   business.zipStats.housingUnits == null
-                    ? "—"
+                    ? "Not available"
                     : business.zipStats.housingUnits.toLocaleString("en-US")
                 }
               />
               <Metric
-                label="Owner-Occupied Housing Units"
+                label="Owner Occupied Homes"
                 value={
                   business.zipStats.ownerOccupiedHousingUnits == null
-                    ? "—"
+                    ? "Not available"
                     : business.zipStats.ownerOccupiedHousingUnits.toLocaleString(
                         "en-US",
                       )
                 }
               />
               <Metric
-                label="Owner-Occupied Rate"
+                label="Owner Occupancy Rate"
                 value={
                   business.zipStats.ownerOccupiedRate == null
-                    ? "—"
+                    ? "Not available"
                     : `${business.zipStats.ownerOccupiedRate.toFixed(1)}%`
                 }
               />
@@ -1067,7 +1067,7 @@ export default async function BusinessDetailPage({
                 label="Median Household Income"
                 value={
                   business.zipStats.medianHouseholdIncome == null
-                    ? "—"
+                    ? "Not available"
                     : formatCurrency(business.zipStats.medianHouseholdIncome)
                 }
               />
@@ -1075,25 +1075,25 @@ export default async function BusinessDetailPage({
                 label="Median Home Value"
                 value={
                   business.zipStats.medianHomeValue == null
-                    ? "—"
+                    ? "Not available"
                     : formatCurrency(business.zipStats.medianHomeValue)
                 }
               />
               <Metric
-                label="Median Year Structure Built"
+                label="Median Home Age"
                 value={
                   business.zipStats.medianYearStructureBuilt == null
-                    ? "—"
+                    ? "Not available"
                     : String(
                         Math.round(business.zipStats.medianYearStructureBuilt),
                       )
                 }
               />
               <Metric
-                label="Census dataset year"
+                label="Dataset Year"
                 value={
                   business.zipStats.datasetYear == null
-                    ? "—"
+                    ? "Not available"
                     : String(business.zipStats.datasetYear)
                 }
               />
