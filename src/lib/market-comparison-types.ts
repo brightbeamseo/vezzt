@@ -97,10 +97,10 @@ export const MARKET_COMPARISON_COLUMNS: MarketComparisonColumnDef[] = [
   { id: "businessName", label: "Business", group: "Identity", numeric: false, defaultVisible: true },
   { id: "city", label: "City", group: "Identity", numeric: false, defaultVisible: true },
   { id: "companyName", label: "Company", group: "Identity", numeric: false, defaultVisible: false },
-  { id: "companyScale", label: "Company scale", group: "Identity", numeric: false, defaultVisible: false },
-  { id: "ownershipModel", label: "Ownership model", group: "Identity", numeric: false, defaultVisible: false },
+  { id: "companyScale", label: "Company scale", group: "Identity", numeric: false, defaultVisible: true },
+  { id: "ownershipModel", label: "Ownership model", group: "Identity", numeric: false, defaultVisible: true },
   { id: "website", label: "Website", group: "Identity", numeric: false, defaultVisible: false },
-  { id: "searchScope", label: "Search Scope", group: "Ahrefs", numeric: false, defaultVisible: false },
+  { id: "searchScope", label: "Search Scope", group: "Ahrefs", numeric: false, defaultVisible: true },
   { id: "analysisTarget", label: "Analysis Target", group: "Ahrefs", numeric: false, defaultVisible: true },
   { id: "analysisMode", label: "Analysis mode", group: "Ahrefs", numeric: false, defaultVisible: false },
   {

@@ -148,18 +148,18 @@ function ScopedValueCell({
     return <span className="text-neutral-400">—</span>;
   }
   return (
-    <div className={compact ? "space-y-0.5" : "space-y-1"}>
+    <div className={compact ? "space-y-1" : "space-y-1.5"}>
       <div className="tabular-nums text-vezzt-950">{display}</div>
       <SearchScopeBadge scope={metric.searchScope} />
       {warnMixed && metric.searchScope === "mixed" ? (
-        <div className="text-[10px] text-amber-800">
+        <div className="max-w-[11rem] text-[10px] leading-snug text-amber-800">
           Not location-specific — not directly comparable to Location metrics
         </div>
       ) : null}
       {percentile != null ? (
         <>
           <div
-            className="h-1.5 w-full overflow-hidden rounded bg-neutral-100"
+            className="h-2 w-full min-w-[5rem] overflow-hidden rounded bg-neutral-100"
             title={formatOrdinal(percentile) ?? undefined}
           >
             <div
@@ -231,7 +231,7 @@ export function MarketComparisonDashboard({ payload }: Props) {
     MarketComparisonColumnId[]
   >(DEFAULT_VISIBLE_COLUMNS);
   const [columnPanelOpen, setColumnPanelOpen] = useState(false);
-  const [compact, setCompact] = useState(true);
+  const [compact, setCompact] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [drawerOpen, setDrawerOpen] = useState(false);
 
@@ -377,7 +377,28 @@ export function MarketComparisonDashboard({ payload }: Props) {
     URL.revokeObjectURL(url);
   }
 
-  const cellPad = compact ? "px-2 py-1.5" : "px-3 py-2.5";
+  const cellPad = compact ? "px-3 py-2" : "px-4 py-3";
+  const cellMin = compact ? "min-w-[7.5rem]" : "min-w-[9rem]";
+  const businessMin = compact ? "min-w-[12rem]" : "min-w-[14rem]";
+  const targetMin = compact ? "min-w-[11rem]" : "min-w-[13rem]";
+
+  function columnMinWidth(id: MarketComparisonColumnId): string {
+    if (id === "businessName") return businessMin;
+    if (id === "analysisTarget") return targetMin;
+    if (
+      id === "organicTraffic" ||
+      id === "organicKeywords" ||
+      id === "domainRating" ||
+      id === "referringDomains" ||
+      id === "shareOfLocalVoice" ||
+      id === "searchScope" ||
+      id === "companyScale" ||
+      id === "ownershipModel"
+    ) {
+      return cellMin;
+    }
+    return compact ? "min-w-[6.5rem]" : "min-w-[7.5rem]";
+  }
 
   return (
     <div className="space-y-4">
@@ -695,14 +716,17 @@ export function MarketComparisonDashboard({ payload }: Props) {
       ) : null}
 
       <div className="overflow-x-auto rounded-xl border border-neutral-200 bg-white shadow-sm">
-        <table className="min-w-full text-left">
+        <table className="w-max min-w-full border-separate border-spacing-0 text-left">
           <thead className="border-b border-neutral-200 bg-neutral-50 text-[11px] uppercase tracking-wide text-neutral-500">
             <tr>
-              <th className={`${cellPad} w-8`} />
+              <th className={`${cellPad} w-10 sticky left-0 z-10 bg-neutral-50`} />
               {visibleOrdered.map((id) => {
                 const col = MARKET_COMPARISON_COLUMNS.find((c) => c.id === id)!;
                 return (
-                  <th key={id} className={`${cellPad} font-medium`}>
+                  <th
+                    key={id}
+                    className={`${cellPad} ${columnMinWidth(id)} whitespace-nowrap font-medium`}
+                  >
                     <button
                       type="button"
                       className="inline-flex items-center gap-1 hover:text-vezzt-800"
@@ -722,7 +746,7 @@ export function MarketComparisonDashboard({ payload }: Props) {
                 key={row.businessId}
                 className="border-t border-neutral-100 hover:bg-neutral-50/80"
               >
-                <td className={cellPad}>
+                <td className={`${cellPad} sticky left-0 z-10 bg-white`}>
                   <input
                     type="checkbox"
                     checked={selected.has(row.businessId)}
@@ -733,7 +757,7 @@ export function MarketComparisonDashboard({ payload }: Props) {
                 {visibleOrdered.map((id) => (
                   <td
                     key={id}
-                    className={`${cellPad} text-sm ${
+                    className={`${cellPad} ${columnMinWidth(id)} text-sm ${
                       compact ? "align-middle" : "align-top"
                     }`}
                   >
@@ -1093,13 +1117,13 @@ function renderCell(
       return <span className="text-xs">{row.analysisMode ?? "—"}</span>;
     case "reviewCount":
       return (
-        <div className={compact ? "space-y-0.5" : "space-y-1"}>
+        <div className={compact ? "space-y-1" : "space-y-1.5"}>
           <div className="tabular-nums text-vezzt-950">
             {formatInt(row.reviewCount)}
           </div>
           {row.percentiles.reviewCount != null ? (
             <>
-              <div className="h-1.5 w-full overflow-hidden rounded bg-neutral-100">
+              <div className="h-2 w-full min-w-[5rem] overflow-hidden rounded bg-neutral-100">
                 <div
                   className="h-full rounded bg-vezzt-600/80"
                   style={{
@@ -1233,11 +1257,11 @@ function renderCell(
       );
     case "shareOfLocalVoice":
       return (
-        <div className={compact ? "space-y-0.5" : "space-y-1"}>
+        <div className={compact ? "space-y-1" : "space-y-1.5"}>
           <div className="tabular-nums">{formatPct(row.shareOfLocalVoice)}</div>
           {row.percentiles.shareOfLocalVoice != null ? (
             <>
-              <div className="h-1.5 w-full overflow-hidden rounded bg-neutral-100">
+              <div className="h-2 w-full min-w-[5rem] overflow-hidden rounded bg-neutral-100">
                 <div
                   className="h-full rounded bg-vezzt-600/80"
                   style={{
