@@ -95,6 +95,7 @@ type BusinessQueryRow = {
         timezone: string | null;
         population: number | null;
         households: number | null;
+        housing_units: number | null;
         owner_occupied_units: number | null;
         owner_occupied_rate: number | string | null;
         median_household_income: number | string | null;
@@ -115,6 +116,7 @@ type BusinessQueryRow = {
         timezone: string | null;
         population: number | null;
         households: number | null;
+        housing_units: number | null;
         owner_occupied_units: number | null;
         owner_occupied_rate: number | string | null;
         median_household_income: number | string | null;
@@ -370,6 +372,7 @@ export async function getDashboardBusinessById(
         timezone,
         population,
         households,
+        housing_units,
         owner_occupied_units,
         owner_occupied_rate,
         median_household_income,
@@ -669,6 +672,7 @@ export async function getDashboardBusinessById(
         timezone: marketRow.timezone,
         population: marketRow.population,
         households: marketRow.households,
+        housingUnits: marketRow.housing_units,
         ownerOccupiedUnits: marketRow.owner_occupied_units,
         ownerOccupiedRate: toNumber(marketRow.owner_occupied_rate),
         medianHouseholdIncome: toNumber(marketRow.median_household_income),

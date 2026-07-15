@@ -470,4 +470,24 @@ export type MarketComparisonPayload = {
   rows: MarketComparisonRow[];
   cities: string[];
   duplicateBusinessIds: string[];
+  /** Shared market Census overview — shown once above the table, not per row. */
+  marketOverview: {
+    id: string;
+    marketName: string;
+    marketSlug: string;
+    marketType: string | null;
+    cbsaCode: string | null;
+    timezone: string | null;
+    population: number | null;
+    households: number | null;
+    housingUnits: number | null;
+    ownerOccupiedUnits: number | null;
+    ownerOccupiedRate: number | null;
+    medianHouseholdIncome: number | null;
+    medianHomeValue: number | null;
+    medianYearStructureBuilt: number | null;
+    datasetYear: number | null;
+    dataSource: string | null;
+    lastUpdated: string | null;
+  } | null;
 };

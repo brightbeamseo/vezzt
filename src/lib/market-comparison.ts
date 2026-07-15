@@ -387,12 +387,68 @@ export async function getMarketComparisonSignals(input: {
     ),
   ].sort((a, b) => a.localeCompare(b));
 
+  const { data: marketData, error: marketError } = await supabase
+    .from("markets")
+    .select(
+      `
+      id,
+      market_name,
+      market_slug,
+      market_type,
+      cbsa_code,
+      timezone,
+      population,
+      households,
+      housing_units,
+      owner_occupied_units,
+      owner_occupied_rate,
+      median_household_income,
+      median_home_value,
+      median_year_structure_built,
+      dataset_year,
+      data_source,
+      last_updated
+    `,
+    )
+    .eq("market_slug", input.marketId)
+    .maybeSingle();
+
+  if (marketError) {
+    throw new Error(`Failed to load markets overview: ${marketError.message}`);
+  }
+
+  const marketOverview = marketData
+    ? {
+        id: marketData.id as string,
+        marketName: marketData.market_name as string,
+        marketSlug: marketData.market_slug as string,
+        marketType: (marketData.market_type as string | null) ?? null,
+        cbsaCode: (marketData.cbsa_code as string | null) ?? null,
+        timezone: (marketData.timezone as string | null) ?? null,
+        population: (marketData.population as number | null) ?? null,
+        households: (marketData.households as number | null) ?? null,
+        housingUnits: (marketData.housing_units as number | null) ?? null,
+        ownerOccupiedUnits:
+          (marketData.owner_occupied_units as number | null) ?? null,
+        ownerOccupiedRate: toNumber(marketData.owner_occupied_rate),
+        medianHouseholdIncome: toNumber(marketData.median_household_income),
+        medianHomeValue: toNumber(marketData.median_home_value),
+        medianYearStructureBuilt: toNumber(
+          marketData.median_year_structure_built,
+        ),
+        datasetYear: (marketData.dataset_year as number | null) ?? null,
+        dataSource: (marketData.data_source as string | null) ?? null,
+        lastUpdated: (marketData.last_updated as string | null) ?? null,
+      }
+    : null;
+
   return {
     marketId: input.marketId,
     sector: input.sector,
     rows,
     cities,
     duplicateBusinessIds,
+    marketOverview,
   };
 }
 

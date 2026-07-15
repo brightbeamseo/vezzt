@@ -21,6 +21,7 @@ import {
   type ScopedMetric,
 } from "@/lib/market-comparison-types";
 import type { QualificationStatus } from "@/lib/qualification";
+import { formatCurrency } from "@/lib/format";
 import {
   SEARCH_SCOPE_LABELS,
   SEARCH_SCOPE_TOOLTIPS,
@@ -84,6 +85,20 @@ const COMPARE_FIELDS: Array<{
     format: (r) => formatPct(r.top3Coverage),
   },
 ];
+
+function formatOverviewValue(
+  value: number | null | undefined,
+  kind: "int" | "currency" | "rate" | "year" | "text",
+  text?: string | null,
+): string {
+  if (kind === "text") return text?.trim() || "Not available.";
+  if (value == null) return "Not available.";
+  if (kind === "int") return Math.round(value).toLocaleString("en-US");
+  if (kind === "currency") return formatCurrency(value);
+  if (kind === "rate") return `${value.toFixed(1)}%`;
+  if (kind === "year") return String(Math.round(value));
+  return "Not available.";
+}
 
 function formatInt(n: number | null | undefined): string {
   if (n == null) return "—";
@@ -437,6 +452,113 @@ export function MarketComparisonDashboard({ payload }: Props) {
             </p>
           </div>
         ))}
+      </div>
+
+      <div className="rounded-lg border border-neutral-200 bg-white p-4">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <h2 className="text-sm font-semibold text-vezzt-950">
+              Market Overview
+            </h2>
+            <p className="mt-0.5 text-xs text-neutral-500">
+              Shared US Census ACS metro statistics for the selected market —
+              shown once, not repeated in each business row.
+            </p>
+          </div>
+        </div>
+        {!payload.marketOverview ? (
+          <p className="mt-3 text-sm text-neutral-500">Not available.</p>
+        ) : (
+          <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+            {(
+              [
+                {
+                  label: "Market",
+                  value: formatOverviewValue(
+                    null,
+                    "text",
+                    payload.marketOverview.marketName,
+                  ),
+                },
+                {
+                  label: "Population",
+                  value: formatOverviewValue(
+                    payload.marketOverview.population,
+                    "int",
+                  ),
+                },
+                {
+                  label: "Households",
+                  value: formatOverviewValue(
+                    payload.marketOverview.households,
+                    "int",
+                  ),
+                },
+                {
+                  label: "Housing Units",
+                  value: formatOverviewValue(
+                    payload.marketOverview.housingUnits,
+                    "int",
+                  ),
+                },
+                {
+                  label: "Owner-Occupied Homes",
+                  value: formatOverviewValue(
+                    payload.marketOverview.ownerOccupiedUnits,
+                    "int",
+                  ),
+                },
+                {
+                  label: "Owner-Occupied Rate",
+                  value: formatOverviewValue(
+                    payload.marketOverview.ownerOccupiedRate,
+                    "rate",
+                  ),
+                },
+                {
+                  label: "Median Household Income",
+                  value: formatOverviewValue(
+                    payload.marketOverview.medianHouseholdIncome,
+                    "currency",
+                  ),
+                },
+                {
+                  label: "Median Home Value",
+                  value: formatOverviewValue(
+                    payload.marketOverview.medianHomeValue,
+                    "currency",
+                  ),
+                },
+                {
+                  label: "Median Year Structure Built",
+                  value: formatOverviewValue(
+                    payload.marketOverview.medianYearStructureBuilt,
+                    "year",
+                  ),
+                },
+                {
+                  label: "Census dataset year",
+                  value: formatOverviewValue(
+                    payload.marketOverview.datasetYear,
+                    "year",
+                  ),
+                },
+              ] as const
+            ).map((item) => (
+              <div
+                key={item.label}
+                className="rounded border border-neutral-100 bg-neutral-50 px-3 py-2"
+              >
+                <p className="text-[10px] uppercase tracking-wide text-neutral-500">
+                  {item.label}
+                </p>
+                <p className="mt-0.5 text-sm font-medium tabular-nums text-vezzt-950">
+                  {item.value}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="rounded-lg border border-neutral-200 bg-white p-3">

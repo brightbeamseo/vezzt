@@ -187,6 +187,7 @@ export type DashboardBusinessDetail = DashboardBusiness & {
     timezone: string | null;
     population: number | null;
     households: number | null;
+    housingUnits: number | null;
     ownerOccupiedUnits: number | null;
     ownerOccupiedRate: number | null;
     medianHouseholdIncome: number | null;

@@ -911,29 +911,27 @@ export default async function BusinessDetailPage({
         </section>
 
         <section className="rounded-xl border border-neutral-200 bg-white p-5 shadow-sm">
-          <h2 className="text-sm font-semibold text-vezzt-950">Market</h2>
+          <h2 className="text-sm font-semibold text-vezzt-950">
+            Market Snapshot
+          </h2>
           <p className="mt-1 text-xs text-neutral-500">
-            Comparison geography for this business. Market Census statistics are
-            shared across locations — not copied onto the business row.
+            Market-level US Census ACS demographics for this business&apos;s
+            comparison geography. Shared across locations — not copied onto the
+            business row.
           </p>
           {!business.market ? (
-            <p className="mt-4 text-sm text-neutral-500">Not collected</p>
+            <p className="mt-4 text-sm text-neutral-500">Not available.</p>
           ) : (
             <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-3">
-              <Metric label="Market Name" value={business.market.marketName} />
               <Metric
-                label="Market Type"
-                value={business.market.marketType ?? "Not collected"}
-              />
-              <Metric
-                label="Timezone"
-                value={business.market.timezone ?? "Not collected"}
+                label="Market"
+                value={business.market.marketName || "Not available."}
               />
               <Metric
                 label="Population"
                 value={
                   business.market.population == null
-                    ? "Not collected"
+                    ? "Not available."
                     : business.market.population.toLocaleString("en-US")
                 }
               />
@@ -941,23 +939,39 @@ export default async function BusinessDetailPage({
                 label="Households"
                 value={
                   business.market.households == null
-                    ? "Not collected"
+                    ? "Not available."
                     : business.market.households.toLocaleString("en-US")
                 }
               />
               <Metric
-                label="Owner Occupied Homes"
+                label="Housing Units"
+                value={
+                  business.market.housingUnits == null
+                    ? "Not available."
+                    : business.market.housingUnits.toLocaleString("en-US")
+                }
+              />
+              <Metric
+                label="Owner-Occupied Homes"
                 value={
                   business.market.ownerOccupiedUnits == null
-                    ? "Not collected"
+                    ? "Not available."
                     : business.market.ownerOccupiedUnits.toLocaleString("en-US")
+                }
+              />
+              <Metric
+                label="Owner-Occupied Rate"
+                value={
+                  business.market.ownerOccupiedRate == null
+                    ? "Not available."
+                    : `${business.market.ownerOccupiedRate.toFixed(1)}%`
                 }
               />
               <Metric
                 label="Median Household Income"
                 value={
                   business.market.medianHouseholdIncome == null
-                    ? "Not collected"
+                    ? "Not available."
                     : formatCurrency(business.market.medianHouseholdIncome)
                 }
               />
@@ -965,44 +979,26 @@ export default async function BusinessDetailPage({
                 label="Median Home Value"
                 value={
                   business.market.medianHomeValue == null
-                    ? "Not collected"
+                    ? "Not available."
                     : formatCurrency(business.market.medianHomeValue)
                 }
               />
               <Metric
-                label="Median Home Age"
+                label="Median Year Structure Built"
                 value={
                   business.market.medianYearStructureBuilt == null
-                    ? "Not collected"
+                    ? "Not available."
                     : String(
                         Math.round(business.market.medianYearStructureBuilt),
                       )
                 }
               />
               <Metric
-                label="Population Growth"
+                label="Census dataset year"
                 value={
-                  business.market.populationGrowth == null
-                    ? "Not collected"
-                    : `${business.market.populationGrowth}`
-                }
-              />
-              <Metric
-                label="Housing Growth"
-                value={
-                  business.market.housingGrowth == null
-                    ? "Not collected"
-                    : `${business.market.housingGrowth}`
-                }
-              />
-              <Metric
-                label="Annual Building Permits"
-                value={
-                  business.market.annualBuildingPermits == null
-                    ? "Not collected"
-                    : business.market.annualBuildingPermits.toLocaleString(
-                        "en-US",
-                      )
+                  business.market.datasetYear == null
+                    ? "Not available."
+                    : String(business.market.datasetYear)
                 }
               />
             </div>

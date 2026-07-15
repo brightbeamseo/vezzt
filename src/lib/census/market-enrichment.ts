@@ -1,17 +1,25 @@
 /**
- * Market-level Census enrichment architecture.
- *
- * Intentionally does NOT call the Census API yet.
- * Once CENSUS_API_KEY is configured, wire fetchMarket() to ACS / CBSA endpoints
- * and run `npm run enrich:markets`.
- *
+ * Market-level Census enrichment (ACS 5-Year CBSA / metro).
  * Server-side only — never expose CENSUS_API_KEY to the client.
  */
 import type { Client } from "pg";
 import { MARKETS, type MarketId, normalizeCityName } from "@/lib/markets";
+import {
+  CENSUS_ACS_BASE,
+  CENSUS_ACS_VARIABLES,
+  CENSUS_DATASET_YEAR,
+  computeOwnerOccupiedRate,
+  parseCensusNumber,
+} from "@/lib/census/zcta";
 
 export const CENSUS_API_KEY_MISSING_MESSAGE = "Census API key not configured.";
 export const CENSUS_API_KEY_CLI_MISSING_MESSAGE = "CENSUS_API_KEY missing.";
+
+/** Official ACS geography name for metro/micro statistical areas (CBSA). */
+export const CENSUS_CBSA_GEOGRAPHY =
+  "metropolitan statistical area/micropolitan statistical area";
+
+export const MARKET_CENSUS_DATA_SOURCE = "US Census ACS 5-Year";
 
 export type MarketType = "metro" | "msa" | "state" | "custom";
 
@@ -49,6 +57,24 @@ export type NormalizeMarketInput = {
   cbsaCode?: string | null;
   state?: string | null;
   timezone?: string | null;
+};
+
+export type MarketAcsStats = {
+  cbsaCode: string;
+  name: string | null;
+  population: number | null;
+  households: number | null;
+  housingUnits: number | null;
+  ownerOccupiedUnits: number | null;
+  ownerOccupiedRate: number | null;
+  medianHouseholdIncome: number | null;
+  medianHomeValue: number | null;
+  medianYearStructureBuilt: number | null;
+  datasetYear: number;
+  dataSource: string;
+  endpoint: string;
+  httpStatus: number;
+  rawResponse: unknown;
 };
 
 /** Friendly gate for UI / services when enrichment is disabled. */
@@ -168,6 +194,177 @@ function mapMarketRow(row: Record<string, unknown>): MarketRecord {
   };
 }
 
+type CensusTable = string[][];
+
+function censusTableToObjects(table: CensusTable): Record<string, string>[] {
+  if (!Array.isArray(table) || table.length < 2) return [];
+  const headers = table[0]!;
+  return table.slice(1).map((row) => {
+    const obj: Record<string, string> = {};
+    headers.forEach((h, i) => {
+      obj[h] = row[i] ?? "";
+    });
+    return obj;
+  });
+}
+
+function redactKeyFromUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    if (u.searchParams.has("key")) u.searchParams.set("key", "[redacted]");
+    return u.toString();
+  } catch {
+    return url.replace(/([?&]key=)[^&]+/i, "$1[redacted]");
+  }
+}
+
+/**
+ * Resolve CBSA code from Census ACS metro/micro geography by NAME match.
+ * Does not invent codes — returns matches from the live geography listing.
+ */
+export async function resolveCbsaCodeFromCensus(input: {
+  nameIncludes: string[];
+  apiKey?: string | null;
+}): Promise<{
+  cbsaCode: string;
+  name: string;
+  endpoint: string;
+  httpStatus: number;
+  candidates: Array<{ name: string; cbsaCode: string }>;
+}> {
+  const apiKey = input.apiKey?.trim() || requireCensusApiKey();
+  const params = new URLSearchParams();
+  params.set("get", "NAME");
+  params.set("for", `${CENSUS_CBSA_GEOGRAPHY}:*`);
+  params.set("key", apiKey);
+  const endpoint = `${CENSUS_ACS_BASE}?${params.toString()}`;
+
+  const res = await fetch(endpoint, {
+    headers: { Accept: "application/json" },
+    cache: "no-store",
+    redirect: "follow",
+  });
+  const bodyText = await res.text();
+  const safeEndpoint = redactKeyFromUrl(endpoint);
+
+  if (
+    !res.ok ||
+    bodyText.includes("Missing Key") ||
+    !bodyText.trim().startsWith("[")
+  ) {
+    throw new Error(
+      `Census CBSA geography lookup failed (HTTP ${res.status}): ${bodyText.slice(0, 200)}`,
+    );
+  }
+
+  const table = JSON.parse(bodyText) as CensusTable;
+  const objects = censusTableToObjects(table);
+  const needles = input.nameIncludes.map((n) => n.toLowerCase());
+
+  const candidates = objects
+    .map((row) => ({
+      name: (row.NAME ?? "").trim(),
+      cbsaCode: (row[CENSUS_CBSA_GEOGRAPHY] ?? "").trim(),
+    }))
+    .filter((c) => c.name && c.cbsaCode)
+    .filter((c) => {
+      const lower = c.name.toLowerCase();
+      return needles.every((n) => lower.includes(n));
+    });
+
+  if (candidates.length === 0) {
+    throw new Error(
+      `No CBSA matched name filters: ${input.nameIncludes.join(", ")}`,
+    );
+  }
+
+  const preferred =
+    candidates.find((c) => /metro area/i.test(c.name)) ?? candidates[0]!;
+
+  return {
+    cbsaCode: preferred.cbsaCode,
+    name: preferred.name,
+    endpoint: safeEndpoint,
+    httpStatus: res.status,
+    candidates,
+  };
+}
+
+export function buildCensusCbsaUrl(
+  cbsaCode: string,
+  apiKey?: string | null,
+): string {
+  const code = cbsaCode.trim();
+  if (!/^\d{5}$/.test(code)) {
+    throw new Error(`Invalid CBSA code "${cbsaCode}"`);
+  }
+  const params = new URLSearchParams();
+  params.set("get", CENSUS_ACS_VARIABLES.join(","));
+  params.set("for", `${CENSUS_CBSA_GEOGRAPHY}:${code}`);
+  if (apiKey) params.set("key", apiKey);
+  return `${CENSUS_ACS_BASE}?${params.toString()}`;
+}
+
+/** Fetch ACS 5-Year Detailed Tables for a verified CBSA code. */
+export async function fetchMarketAcsByCbsa(input: {
+  cbsaCode: string;
+  apiKey?: string | null;
+}): Promise<MarketAcsStats> {
+  const apiKey = input.apiKey?.trim() || requireCensusApiKey();
+  const endpoint = buildCensusCbsaUrl(input.cbsaCode, apiKey);
+  const safeEndpoint = redactKeyFromUrl(endpoint);
+
+  const res = await fetch(endpoint, {
+    headers: { Accept: "application/json" },
+    cache: "no-store",
+    redirect: "follow",
+  });
+  const bodyText = await res.text();
+
+  if (
+    !res.ok ||
+    bodyText.includes("Missing Key") ||
+    !bodyText.trim().startsWith("[")
+  ) {
+    throw new Error(
+      `Census CBSA ACS fetch failed (HTTP ${res.status}): ${bodyText.slice(0, 200)}`,
+    );
+  }
+
+  const table = JSON.parse(bodyText) as CensusTable;
+  const objects = censusTableToObjects(table);
+  const row = objects[0];
+  if (!row) {
+    throw new Error(`Census returned no rows for CBSA ${input.cbsaCode}`);
+  }
+
+  const population = parseCensusNumber(row.B01003_001E);
+  const households = parseCensusNumber(row.B11001_001E);
+  const housingUnits = parseCensusNumber(row.B25001_001E);
+  const ownerOccupiedUnits = parseCensusNumber(row.B25003_002E);
+
+  return {
+    cbsaCode: input.cbsaCode,
+    name: row.NAME?.trim() || null,
+    population,
+    households,
+    housingUnits,
+    ownerOccupiedUnits,
+    ownerOccupiedRate: computeOwnerOccupiedRate(
+      ownerOccupiedUnits,
+      households,
+    ),
+    medianHouseholdIncome: parseCensusNumber(row.B19013_001E),
+    medianHomeValue: parseCensusNumber(row.B25077_001E),
+    medianYearStructureBuilt: parseCensusNumber(row.B25035_001E),
+    datasetYear: CENSUS_DATASET_YEAR,
+    dataSource: MARKET_CENSUS_DATA_SOURCE,
+    endpoint: safeEndpoint,
+    httpStatus: res.status,
+    rawResponse: row,
+  };
+}
+
 /** Load a market by UUID or market_slug. */
 export async function fetchMarket(
   db: Client,
@@ -187,7 +384,7 @@ export async function fetchMarket(
 
 /**
  * Upsert market identity row. Census statistic columns are left unchanged
- * unless explicitly provided (enrichment path — not implemented yet).
+ * unless explicitly provided.
  */
 export async function upsertMarket(
   db: Client,
@@ -206,7 +403,6 @@ export async function upsertMarket(
     datasetYear?: number | null;
     dataSource?: string | null;
     rawResponse?: unknown | null;
-    /** When true, requires CENSUS_API_KEY (future enrichment path). */
     requireApiKey?: boolean;
   },
 ): Promise<MarketRecord> {
@@ -215,6 +411,11 @@ export async function upsertMarket(
   }
 
   const normalized = normalizeMarket(input);
+  const hasStats =
+    input.population != null ||
+    input.households != null ||
+    input.medianHouseholdIncome != null ||
+    input.datasetYear != null;
 
   const { rows } = await db.query(
     `insert into public.markets (
@@ -243,7 +444,7 @@ export async function upsertMarket(
     ) values (
       $1, $2, $3, $4, $5, $6,
       $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20::jsonb,
-      case when $7::int is not null or $8::int is not null then now() else null end,
+      case when $21::boolean then now() else null end,
       now()
     )
     on conflict (market_slug) do update set
@@ -267,10 +468,7 @@ export async function upsertMarket(
       data_source = coalesce(excluded.data_source, public.markets.data_source),
       raw_response = coalesce(excluded.raw_response, public.markets.raw_response),
       last_updated = case
-        when excluded.population is not null
-          or excluded.households is not null
-          or excluded.median_household_income is not null
-        then now()
+        when $21::boolean then now()
         else public.markets.last_updated
       end,
       updated_at = now()
@@ -296,10 +494,94 @@ export async function upsertMarket(
       input.datasetYear ?? null,
       input.dataSource ?? null,
       input.rawResponse != null ? JSON.stringify(input.rawResponse) : null,
+      hasStats,
     ],
   );
 
   return mapMarketRow(rows[0] as Record<string, unknown>);
+}
+
+/**
+ * Apply Census ACS stats onto an existing market row (by slug).
+ * Replaces Census statistic columns; does not invent values.
+ */
+export async function applyMarketCensusStats(
+  db: Client,
+  marketSlug: string,
+  stats: MarketAcsStats,
+): Promise<MarketRecord> {
+  requireCensusApiKey();
+
+  const { rows } = await db.query(
+    `update public.markets set
+       cbsa_code = $2,
+       population = $3,
+       households = $4,
+       housing_units = $5,
+       owner_occupied_units = $6,
+       owner_occupied_rate = $7,
+       median_household_income = $8,
+       median_home_value = $9,
+       median_year_structure_built = $10,
+       dataset_year = $11,
+       data_source = $12,
+       raw_response = $13::jsonb,
+       last_updated = now(),
+       updated_at = now()
+     where market_slug = $1
+     returning *`,
+    [
+      marketSlug,
+      stats.cbsaCode,
+      stats.population,
+      stats.households,
+      stats.housingUnits,
+      stats.ownerOccupiedUnits,
+      stats.ownerOccupiedRate,
+      stats.medianHouseholdIncome,
+      stats.medianHomeValue,
+      stats.medianYearStructureBuilt,
+      stats.datasetYear,
+      stats.dataSource,
+      JSON.stringify(stats.rawResponse),
+    ],
+  );
+
+  if (!rows[0]) {
+    throw new Error(
+      `Market slug "${marketSlug}" not found — cannot apply Census stats`,
+    );
+  }
+  return mapMarketRow(rows[0] as Record<string, unknown>);
+}
+
+/**
+ * Full Boise Metro enrichment path: resolve CBSA from Census → ACS fetch → upsert.
+ */
+export async function enrichMarketFromCensus(input: {
+  db: Client;
+  marketSlug: string;
+  nameIncludes: string[];
+}): Promise<{
+  market: MarketRecord;
+  resolved: Awaited<ReturnType<typeof resolveCbsaCodeFromCensus>>;
+  stats: MarketAcsStats;
+}> {
+  const apiKey = requireCensusApiKey();
+  const resolved = await resolveCbsaCodeFromCensus({
+    nameIncludes: input.nameIncludes,
+    apiKey,
+  });
+  const stats = await fetchMarketAcsByCbsa({
+    cbsaCode: resolved.cbsaCode,
+    apiKey,
+  });
+  const market = await applyMarketCensusStats(
+    input.db,
+    input.marketSlug,
+    stats,
+  );
+  return { market, resolved, stats };
 }
 
 /**
@@ -309,11 +591,8 @@ export async function assignBusinessesToMarket(
   db: Client,
   input: {
     marketId: string;
-    /** Limit to target sector when set (e.g. roofing). */
     targetSector?: string | null;
-    /** Optional city allowlist (case-insensitive). */
     cities?: string[] | null;
-    /** When true, only update rows that currently have null market_id. */
     onlyUnassigned?: boolean;
   },
 ): Promise<{ updated: number }> {
