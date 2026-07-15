@@ -585,6 +585,8 @@ export function toAhrefsTargetMode(mode: AnalysisMode): AhrefsTargetMode {
       return "exact";
     case "domain":
     default:
-      return "domain";
+      // Site Explorer "Domain" includes www / host variants. Ahrefs mode=domain on
+      // the apex host alone often returns 0 organic (e.g. idahoroofingcontractors.com).
+      return "subdomains";
   }
 }

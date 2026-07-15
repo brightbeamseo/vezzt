@@ -128,6 +128,9 @@ export async function fetchAhrefsAnalysisTargets(
   const endpoint = `${AHREFS_BASE}/batch-analysis/batch-analysis`;
   const body = {
     select: [...BATCH_SELECT],
+    // Match Site Explorer US monthly volume (default all-locations can undercount).
+    country: "us",
+    volume_mode: "monthly" as const,
     targets: targets.map((t) => ({
       url: t.analysisTarget,
       mode: toAhrefsTargetMode(t.analysisMode),
