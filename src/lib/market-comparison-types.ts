@@ -126,7 +126,7 @@ export const MARKET_COMPARISON_COLUMNS: MarketComparisonColumnDef[] = [
   },
   {
     id: "localOrganicTraffic",
-    label: "Local organic traffic",
+    label: "Organic traffic",
     group: "Ahrefs local",
     numeric: true,
     defaultVisible: true,
@@ -134,14 +134,14 @@ export const MARKET_COMPARISON_COLUMNS: MarketComparisonColumnDef[] = [
   },
   {
     id: "localOrganicKeywords",
-    label: "Local organic keywords",
+    label: "Organic keywords",
     group: "Ahrefs local",
     numeric: true,
     defaultVisible: true,
   },
   {
     id: "localKeywordsTop3",
-    label: "Local keywords 1–3",
+    label: "Keywords 1–3",
     group: "Ahrefs local",
     numeric: true,
     defaultVisible: false,
@@ -156,14 +156,14 @@ export const MARKET_COMPARISON_COLUMNS: MarketComparisonColumnDef[] = [
   },
   {
     id: "localBacklinks",
-    label: "Local backlinks",
+    label: "Backlinks",
     group: "Ahrefs local",
     numeric: true,
     defaultVisible: false,
   },
   {
     id: "localTrafficValue",
-    label: "Local traffic value",
+    label: "Traffic value",
     group: "Ahrefs local",
     numeric: true,
     defaultVisible: false,
