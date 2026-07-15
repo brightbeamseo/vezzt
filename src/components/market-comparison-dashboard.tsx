@@ -377,10 +377,10 @@ export function MarketComparisonDashboard({ payload }: Props) {
     URL.revokeObjectURL(url);
   }
 
-  const cellPad = compact ? "px-3 py-2" : "px-4 py-3";
-  const cellMin = compact ? "min-w-[7.5rem]" : "min-w-[9rem]";
-  const businessMin = compact ? "min-w-[12rem]" : "min-w-[14rem]";
-  const targetMin = compact ? "min-w-[11rem]" : "min-w-[13rem]";
+  const cellPad = compact ? "px-2 py-1.5" : "px-2.5 py-2";
+  const cellMin = compact ? "min-w-[6.5rem]" : "min-w-[7.5rem]";
+  const businessMin = compact ? "min-w-[10rem]" : "min-w-[12rem]";
+  const targetMin = compact ? "min-w-[9rem]" : "min-w-[11rem]";
 
   function columnMinWidth(id: MarketComparisonColumnId): string {
     if (id === "businessName") return businessMin;
@@ -397,7 +397,7 @@ export function MarketComparisonDashboard({ payload }: Props) {
     ) {
       return cellMin;
     }
-    return compact ? "min-w-[6.5rem]" : "min-w-[7.5rem]";
+    return compact ? "min-w-[5.5rem]" : "min-w-[6.5rem]";
   }
 
   return (
@@ -1107,7 +1107,7 @@ function renderCell(
     case "analysisTarget":
       return (
         <span
-          className="block max-w-[16rem] break-all text-xs leading-snug text-vezzt-950"
+          className="block max-w-[12rem] break-all text-xs leading-snug text-vezzt-950"
           title={row.analysisTarget ?? ""}
         >
           {row.analysisTarget ?? "—"}
