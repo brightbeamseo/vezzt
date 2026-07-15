@@ -21,13 +21,14 @@ import { connectSupabasePg } from "./db";
 config({ path: ".env.local" });
 
 const SEARCH_TERM = "roofing contractor";
-const MAX_PER_SEARCH = 50;
+const MAX_PER_SEARCH = 100;
 const CONCURRENCY = 2;
 
 type RunResult = {
   city: string;
   searchTerm: string;
-  locationQuery: string;
+  mapsUrl: string;
+  locationLabel: string;
   runId: string;
   datasetId: string | null;
   status: string;
@@ -240,12 +241,16 @@ async function fetchDatasetItems(
 
 async function runCityJob(
   token: string,
-  job: { city: string; locationQuery: string; searchTerm: string },
+  job: {
+    city: string;
+    mapsUrl: string;
+    locationLabel: string;
+    searchTerm: string;
+  },
 ): Promise<RunResult> {
-  console.log(`→ ${job.city} / "${job.searchTerm}"`);
+  console.log(`→ ${job.city} / "${job.searchTerm}"\n  ${job.mapsUrl}`);
   const run = await startRun(token, {
-    searchStringsArray: [job.searchTerm],
-    locationQuery: job.locationQuery,
+    startUrls: [{ url: job.mapsUrl }],
     maxCrawledPlacesPerSearch: MAX_PER_SEARCH,
     language: "en",
     skipClosedPlaces: true,
@@ -264,7 +269,8 @@ async function runCityJob(
     return {
       city: job.city,
       searchTerm: job.searchTerm,
-      locationQuery: job.locationQuery,
+      mapsUrl: job.mapsUrl,
+      locationLabel: job.locationLabel,
       runId: run.id,
       datasetId: finished.defaultDatasetId,
       status: finished.status,
@@ -281,7 +287,8 @@ async function runCityJob(
   return {
     city: job.city,
     searchTerm: job.searchTerm,
-    locationQuery: job.locationQuery,
+    mapsUrl: job.mapsUrl,
+    locationLabel: job.locationLabel,
     runId: run.id,
     datasetId: finished.defaultDatasetId,
     status: finished.status,
@@ -438,11 +445,13 @@ async function main() {
     JSON.stringify(
       {
         marketId: market.id,
+        method: "maps_startUrls",
         cities: market.cities,
         searchTerm: SEARCH_TERM,
         maxPerSearch: MAX_PER_SEARCH,
         runs: results.map((r) => ({
           city: r.city,
+          mapsUrl: r.mapsUrl,
           runId: r.runId,
           datasetId: r.datasetId,
           status: r.status,

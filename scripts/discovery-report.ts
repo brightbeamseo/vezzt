@@ -150,7 +150,7 @@ async function main() {
         "Qualification: primary category must be exactly Roofing contractor.",
         "Tier 1 (100+ reviews): weekly Place-ID monitoring via Vercel Cron.",
         "Tier 2 (<100 reviews): monthly Place-ID monitoring via Vercel Cron.",
-        "Market discovery: Apify quarterly Task only — not weekly broad search.",
+        "Market discovery: Apify monthly map startUrls (100/city) — not locationQuery or weekly broad search.",
         "Uniqueness: google_place_id / placeId.",
         "Velocity metrics require 2+ snapshots — not fabricated after a single discovery pass.",
         "Vestimates not calculated.",

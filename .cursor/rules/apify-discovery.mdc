@@ -1,0 +1,24 @@
+---
+description: Apify / Google Maps market discovery must use map-centered startUrls
+alwaysApply: true
+---
+
+# Apify discovery (Boise Metro roofing)
+
+## Do
+
+- Discover with **Google Maps search URLs** centered on each market city (`startUrls`), e.g.  
+  `https://www.google.com/maps/search/roofing+contractor/@43.5814383,-116.4187121,13z`
+- Use city centers from `src/lib/markets.ts` (`cityCenters`, `mapsSearchUrl`, `marketDiscoveryJobs`).
+- **Monthly** cadence: primary term `roofing contractor`, **100 results per city**, all Boise Metro cities.
+- After scrape, filter / qualify by primary category (`Roofing contractor`) and review thresholds — do not rely on Apify `locationQuery` polygons.
+
+## Do not
+
+- Do **not** use Apify `locationQuery: "{City}, Idaho, USA"` for discovery. It geocodes to a city polygon and **misses** map-ranked businesses (e.g. Idaho Roofing Contractors in Meridian).
+- Do **not** schedule weekly broad keyword discovery. Place-ID monitoring stays on Vercel Cron; market discovery is monthly on Apify.
+
+## Scripts
+
+- Scrape: `npm run scrape:market` → `scripts/scrape-market-apify.ts`
+- Schedules: `npm run setup:apify-collection` → monthly map-URL task

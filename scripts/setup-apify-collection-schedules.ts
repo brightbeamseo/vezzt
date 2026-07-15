@@ -1,14 +1,20 @@
 /**
  * Separate discovery from monitoring on Apify:
- * - Disable weekly broad-search schedule (monitoring is Vercel Cron → Place IDs)
- * - Create/update quarterly market-discovery Task + Schedule + webhook (?mode=discovery)
+ * - Keep weekly broad-search schedule disabled (monitoring is Vercel Cron → Place IDs)
+ * - Replace quarterly locationQuery discovery with monthly map-centered startUrls
+ *   (100 results × each Boise Metro city for "roofing contractor")
  *
  * Usage: tsx scripts/setup-apify-collection-schedules.ts
  */
 import { mkdirSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { config } from "dotenv";
-import { getMarket, marketLocationQueries } from "../src/lib/markets";
+import {
+  getMarket,
+  MONTHLY_DISCOVERY_MAX_PER_CITY,
+  monthlyDiscoveryStartUrls,
+  PRIMARY_ROOFING_SEARCH_TERM,
+} from "../src/lib/markets";
 
 config({ path: ".env.local" });
 
@@ -19,26 +25,28 @@ const WEEKLY_DISCOVERY_SCHEDULE = "boise-roofing-weekly";
 
 const QUARTERLY_TASK = "boise-roofing-quarterly-discovery";
 const QUARTERLY_SCHEDULE = "boise-roofing-quarterly-discovery";
-const QUARTERLY_WEBHOOK_DESC =
-  "Vezzt import on Boise roofing quarterly discovery success";
 
-/** Broad Boise Metro discovery — city locations × roofing contractor terms. */
+const MONTHLY_TASK = "boise-roofing-monthly-discovery";
+const MONTHLY_SCHEDULE = "boise-roofing-monthly-discovery";
+const MONTHLY_WEBHOOK_DESC =
+  "Vezzt import on Boise roofing monthly discovery success";
+
+/** Monthly Boise Metro discovery — map-centered Maps URLs, not locationQuery. */
 function discoveryTaskInput() {
   const market = getMarket("boise-metro");
-  // Actor accepts one locationQuery; prefer metro hub. Full city×term matrix
-  // remains available via scripts/scrape-market-apify.ts for deeper passes.
   return {
-    searchStringsArray: market.roofingSearchTerms,
-    locationQuery: "Boise, Idaho, USA",
-    maxCrawledPlacesPerSearch: 50,
+    startUrls: monthlyDiscoveryStartUrls(market, PRIMARY_ROOFING_SEARCH_TERM),
+    maxCrawledPlacesPerSearch: MONTHLY_DISCOVERY_MAX_PER_CITY,
     language: "en",
-    skipClosedPlaces: false,
+    skipClosedPlaces: true,
     scrapePlaceDetailPage: true,
     maxReviews: 0,
     maxImages: 0,
     includeWebResults: false,
+    // Metadata stripped before writing actor input
     marketCities: market.cities,
-    marketLocationQueries: marketLocationQueries(market),
+    discoveryMethod: "maps_startUrls",
+    searchTerm: PRIMARY_ROOFING_SEARCH_TERM,
   };
 }
 
@@ -182,14 +190,20 @@ async function ensureTask(name: string, title: string, input: object) {
     };
   }
 
-  // Strip non-actor helper metadata before putting input
-  const { marketCities, marketLocationQueries, ...actorInput } = input as {
+  const {
+    marketCities,
+    discoveryMethod,
+    searchTerm,
+    ...actorInput
+  } = input as {
     marketCities?: string[];
-    marketLocationQueries?: string[];
+    discoveryMethod?: string;
+    searchTerm?: string;
     [k: string]: unknown;
   };
   void marketCities;
-  void marketLocationQueries;
+  void discoveryMethod;
+  void searchTerm;
 
   await apify(`/actor-tasks/${task.id}/input`, {
     method: "PUT",
@@ -199,55 +213,75 @@ async function ensureTask(name: string, title: string, input: object) {
   return task;
 }
 
+async function disableSchedule(
+  name: string,
+  reason: string,
+): Promise<Record<string, unknown> | null> {
+  const schedule = await findScheduleByName(name);
+  if (!schedule) return null;
+
+  const detail = await apify<{
+    data: {
+      id: string;
+      name: string;
+      isEnabled: boolean;
+      cronExpression: string;
+      timezone: string;
+      actions?: unknown[];
+      title?: string;
+      isExclusive?: boolean;
+    };
+  }>(`/schedules/${schedule.id}`);
+
+  await apify(`/schedules/${schedule.id}`, {
+    method: "PUT",
+    body: JSON.stringify({
+      name: detail.data.name,
+      title: detail.data.title ?? name,
+      isEnabled: false,
+      isExclusive: detail.data.isExclusive ?? true,
+      cronExpression: detail.data.cronExpression,
+      timezone: detail.data.timezone,
+      description: reason,
+      actions: detail.data.actions ?? [],
+    }),
+  });
+
+  return {
+    scheduleId: schedule.id,
+    name,
+    isEnabled: false,
+  };
+}
+
 async function main() {
   const secret = webhookSecret();
   const discoveryUrl = discoveryWebhookUrl();
   const input = discoveryTaskInput();
+  const market = getMarket("boise-metro");
 
-  // --- Disable old weekly broad-search schedule ---
-  const oldSchedule = await findScheduleByName(WEEKLY_DISCOVERY_SCHEDULE);
-  let weeklyDisabled: Record<string, unknown> | null = null;
-  if (oldSchedule) {
-    const detail = await apify<{
-      data: {
-        id: string;
-        name: string;
-        isEnabled: boolean;
-        cronExpression: string;
-        timezone: string;
-        actions?: unknown[];
-        title?: string;
-        description?: string;
-        isExclusive?: boolean;
-      };
-    }>(`/schedules/${oldSchedule.id}`);
-
-    await apify(`/schedules/${oldSchedule.id}`, {
-      method: "PUT",
-      body: JSON.stringify({
-        name: detail.data.name,
-        title: detail.data.title ?? WEEKLY_DISCOVERY_SCHEDULE,
-        isEnabled: false,
-        isExclusive: detail.data.isExclusive ?? true,
-        cronExpression: detail.data.cronExpression,
-        timezone: detail.data.timezone,
-        description:
-          "DISABLED — broad search moved to quarterly discovery; weekly monitoring is Vercel Cron Place-ID refresh.",
-        actions: detail.data.actions ?? [],
-      }),
-    });
-    weeklyDisabled = {
-      scheduleId: oldSchedule.id,
-      name: WEEKLY_DISCOVERY_SCHEDULE,
-      isEnabled: false,
-    };
-    console.log(`Disabled weekly discovery schedule ${oldSchedule.id}`);
+  // --- Disable old weekly + quarterly discovery schedules ---
+  const weeklyDisabled = await disableSchedule(
+    WEEKLY_DISCOVERY_SCHEDULE,
+    "DISABLED — use monthly map-URL discovery; weekly monitoring is Vercel Cron Place-ID refresh.",
+  );
+  if (weeklyDisabled) {
+    console.log(`Disabled weekly discovery schedule ${weeklyDisabled.scheduleId}`);
   }
 
-  // Rename old weekly task title for clarity (keep for history)
-  const oldTask = await findTaskByName(WEEKLY_DISCOVERY_TASK);
-  if (oldTask) {
-    await apify(`/actor-tasks/${oldTask.id}`, {
+  const quarterlyDisabled = await disableSchedule(
+    QUARTERLY_SCHEDULE,
+    "DISABLED — replaced by monthly map-centered startUrls discovery.",
+  );
+  if (quarterlyDisabled) {
+    console.log(
+      `Disabled quarterly discovery schedule ${quarterlyDisabled.scheduleId}`,
+    );
+  }
+
+  const oldWeeklyTask = await findTaskByName(WEEKLY_DISCOVERY_TASK);
+  if (oldWeeklyTask) {
+    await apify(`/actor-tasks/${oldWeeklyTask.id}`, {
       method: "PUT",
       body: JSON.stringify({
         name: WEEKLY_DISCOVERY_TASK,
@@ -257,28 +291,40 @@ async function main() {
     });
   }
 
-  // --- Quarterly discovery Task ---
+  const oldQuarterlyTask = await findTaskByName(QUARTERLY_TASK);
+  if (oldQuarterlyTask) {
+    await apify(`/actor-tasks/${oldQuarterlyTask.id}`, {
+      method: "PUT",
+      body: JSON.stringify({
+        name: QUARTERLY_TASK,
+        title: "Boise Roofing (deprecated quarterly locationQuery discovery)",
+        options: { build: "latest" },
+      }),
+    });
+  }
+
+  // --- Monthly map-centered discovery Task ---
   const task = await ensureTask(
-    QUARTERLY_TASK,
-    "Boise Roofing Quarterly Discovery",
+    MONTHLY_TASK,
+    "Boise Roofing Monthly Discovery (map URLs)",
     input,
   );
-  console.log(`Quarterly discovery task ${task.id}`);
+  console.log(`Monthly discovery task ${task.id}`);
 
-  // First day of Jan/Apr/Jul/Oct at 09:00 America/Boise
-  const cronExpression = "0 9 1 1,4,7,10 *";
-  const timezone = "America/Boise";
+  // 1st of each month at 09:00 America/Boise
+  const cronExpression = "0 9 1 * *";
+  const timezone = market.timezone;
 
-  let schedule = await findScheduleByName(QUARTERLY_SCHEDULE);
+  let schedule = await findScheduleByName(MONTHLY_SCHEDULE);
   const scheduleBody = {
-    name: QUARTERLY_SCHEDULE,
-    title: "Boise Roofing Quarterly Discovery",
+    name: MONTHLY_SCHEDULE,
+    title: "Boise Roofing Monthly Discovery",
     isEnabled: true,
     isExclusive: true,
     cronExpression,
     timezone,
     description:
-      "Quarterly Boise Metro roofing discovery — find new Place IDs / category changes; webhook imports with mode=discovery.",
+      `Monthly Boise Metro roofing discovery via Maps startUrls (${PRIMARY_ROOFING_SEARCH_TERM}, ${MONTHLY_DISCOVERY_MAX_PER_CITY}/city). Webhook imports with mode=discovery.`,
     actions: [
       {
         type: "RUN_ACTOR_TASK",
@@ -299,7 +345,7 @@ async function main() {
     });
     schedule = {
       id: created.data.id,
-      name: QUARTERLY_SCHEDULE,
+      name: MONTHLY_SCHEDULE,
       nextRunAt: null,
     };
   }
@@ -315,7 +361,7 @@ async function main() {
     };
   }>(`/schedules/${schedule!.id}`);
 
-  let webhook = await findWebhook(task.id, QUARTERLY_WEBHOOK_DESC);
+  let webhook = await findWebhook(task.id, MONTHLY_WEBHOOK_DESC);
   const webhookBody = {
     isEnabled: true,
     eventTypes: ["ACTOR.RUN.SUCCEEDED"],
@@ -325,7 +371,7 @@ async function main() {
       "Content-Type": "application/json",
       "x-apify-webhook-secret": secret,
     }),
-    description: QUARTERLY_WEBHOOK_DESC,
+    description: MONTHLY_WEBHOOK_DESC,
   };
 
   if (webhook) {
@@ -340,7 +386,7 @@ async function main() {
     });
     webhook = {
       id: created.data.id,
-      description: QUARTERLY_WEBHOOK_DESC,
+      description: MONTHLY_WEBHOOK_DESC,
       requestUrl: discoveryUrl,
       condition: { actorTaskId: task.id },
     };
@@ -352,26 +398,36 @@ async function main() {
         "Vercel Cron → /api/cron/weekly-roofing-monitor (Tier 1 Place IDs only)",
       monthlyMonitoring:
         "Vercel Cron → /api/cron/monthly-roofing-monitor (Tier 2 Place IDs only)",
-      quarterlyDiscovery:
-        "Apify Schedule → quarterly Task → webhook ?mode=discovery",
+      monthlyDiscovery:
+        "Apify Schedule → monthly map startUrls Task → webhook ?mode=discovery",
       uniqueness: "google_place_id / placeId UNIQUE + ON CONFLICT",
       qualification: 'primary categoryName === "Roofing contractor"',
     },
     weeklyDiscoveryDisabled: weeklyDisabled,
-    deprecatedWeeklyTaskId: oldTask?.id ?? null,
-    quarterlyTaskId: task.id,
-    quarterlyTaskConsoleUrl: `https://console.apify.com/actors/tasks/${task.id}`,
-    quarterlyScheduleId: scheduleDetail.data.id,
-    quarterlyScheduleConsoleUrl: `https://console.apify.com/schedules/${scheduleDetail.data.id}`,
+    quarterlyDiscoveryDisabled: quarterlyDisabled,
+    deprecatedWeeklyTaskId: oldWeeklyTask?.id ?? null,
+    deprecatedQuarterlyTaskId: oldQuarterlyTask?.id ?? null,
+    monthlyTaskId: task.id,
+    monthlyTaskConsoleUrl: `https://console.apify.com/actors/tasks/${task.id}`,
+    monthlyScheduleId: scheduleDetail.data.id,
+    monthlyScheduleConsoleUrl: `https://console.apify.com/schedules/${scheduleDetail.data.id}`,
     cronExpression,
     timezone,
     isEnabled: scheduleDetail.data.isEnabled,
     nextRunAt: scheduleDetail.data.nextRunAt,
     webhookId: webhook!.id,
     webhookUrl: discoveryUrl,
+    discoveryMethod: "maps_startUrls",
+    searchTerm: PRIMARY_ROOFING_SEARCH_TERM,
+    maxPerCity: MONTHLY_DISCOVERY_MAX_PER_CITY,
+    cities: market.cities,
+    startUrls: input.startUrls,
     apifyWebhookSecret: secret,
     notes: [
-      "Weekly/monthly monitoring must NOT use broad searchStringsArray terms.",
+      "Discovery MUST use Google Maps search URLs with city lat/lng/zoom (startUrls).",
+      "Do NOT use locationQuery city-name mode for discovery — it misses map-ranked listings.",
+      "Monthly: 100 results × each market city for primary term roofing contractor.",
+      "Weekly/monthly Place-ID monitoring must NOT use broad searchStringsArray terms.",
       "Monitor webhook uses ?mode=monitor and refuses to insert unknown placeIds.",
       "Discovery upserts by google_place_id; logs non-Roofing-contractor results.",
       "Set CRON_SECRET on Vercel for monitor crons (Authorization: Bearer).",

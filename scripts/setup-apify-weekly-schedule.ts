@@ -1,7 +1,7 @@
 /**
  * @deprecated Use: npm run setup:apify-collection
  * Weekly broad search was replaced by Place-ID monitoring (Vercel Cron)
- * and quarterly Apify discovery.
+ * and monthly map-centered Apify discovery (startUrls).
  */
 console.error(
   "Deprecated. Run: npm run setup:apify-collection\n" +

@@ -1,6 +1,6 @@
 /**
  * Re-import city-missing places from a multi-city Apify discovery meta file.
- * Stamps `city` from each run's locationQuery city when Apify left city null.
+ * Stamps `city` from each run's city / locationLabel when Apify left city null.
  * Only imports Roofing contractor rows by default (via importApifyPlaces qualifyingOnly).
  *
  * Usage:

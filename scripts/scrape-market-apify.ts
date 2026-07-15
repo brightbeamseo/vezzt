@@ -1,17 +1,22 @@
 /**
- * Full market discovery: one Apify job per (city × search term).
- * Deduplicates by placeId across all jobs.
+ * Full market discovery: one Apify job per (city × search term) via map-centered
+ * Google Maps search URLs (startUrls) — not city-name locationQuery.
  *
  * Usage:
- *   tsx scripts/scrape-market-apify.ts --market=boise-metro --mode=discovery --max-per-search=20 --concurrency=2
- *   tsx scripts/scrape-market-apify.ts --market=boise-metro --query="roofing contractor" --max-per-city=5
+ *   tsx scripts/scrape-market-apify.ts --market=boise-metro --mode=discovery --max-per-search=100
+ *   tsx scripts/scrape-market-apify.ts --market=boise-metro --query="roofing contractor" --max-per-city=100 --cities=Meridian
+ *   tsx scripts/scrape-market-apify.ts --market=boise-metro --mode=discovery --all-terms
  */
 import { mkdirSync, writeFileSync } from "node:fs";
 import { config } from "dotenv";
 import {
+  getCityCenter,
   getMarket,
+  mapsSearchUrl,
   marketDiscoveryJobs,
-  marketLocationQueries,
+  MONTHLY_DISCOVERY_MAX_PER_CITY,
+  PRIMARY_ROOFING_SEARCH_TERM,
+  type MarketDiscoveryJob,
 } from "../src/lib/markets";
 
 config({ path: ".env.local" });
@@ -19,7 +24,8 @@ config({ path: ".env.local" });
 type RunResult = {
   city: string;
   searchTerm: string;
-  locationQuery: string;
+  mapsUrl: string;
+  locationLabel: string;
   runId: string;
   datasetId: string | null;
   status: string;
@@ -31,10 +37,11 @@ type RunResult = {
 function parseArgs(argv: string[]) {
   let marketId = "boise-metro";
   let mode: "discovery" | "single" = "discovery";
-  let query = "roofing contractor";
-  let maxPerSearch = 20;
+  let query = PRIMARY_ROOFING_SEARCH_TERM;
+  let maxPerSearch = MONTHLY_DISCOVERY_MAX_PER_CITY;
   let concurrency = 2;
   let cities: string[] | null = null;
+  let allTerms = false;
 
   for (const arg of argv) {
     if (arg.startsWith("--market=")) marketId = arg.split("=")[1];
@@ -60,6 +67,7 @@ function parseArgs(argv: string[]) {
         .filter(Boolean);
       mode = "single";
     }
+    if (arg === "--all-terms") allTerms = true;
   }
 
   if (!Number.isFinite(maxPerSearch) || maxPerSearch < 1) {
@@ -76,6 +84,7 @@ function parseArgs(argv: string[]) {
     maxPerSearch,
     concurrency,
     cities,
+    allTerms,
   };
 }
 
@@ -185,13 +194,12 @@ async function fetchDatasetItems(
 
 async function runJob(
   token: string,
-  job: { city: string; locationQuery: string; searchTerm: string },
+  job: MarketDiscoveryJob,
   maxPerSearch: number,
 ): Promise<RunResult> {
-  console.log(`→ ${job.city} / "${job.searchTerm}"`);
+  console.log(`→ ${job.city} / "${job.searchTerm}"\n  ${job.mapsUrl}`);
   const run = await startRun(token, {
-    searchStringsArray: [job.searchTerm],
-    locationQuery: job.locationQuery,
+    startUrls: [{ url: job.mapsUrl }],
     maxCrawledPlacesPerSearch: maxPerSearch,
     language: "en",
     skipClosedPlaces: true,
@@ -208,7 +216,8 @@ async function runJob(
     return {
       city: job.city,
       searchTerm: job.searchTerm,
-      locationQuery: job.locationQuery,
+      mapsUrl: job.mapsUrl,
+      locationLabel: job.locationLabel,
       runId: run.id,
       datasetId: finished.defaultDatasetId,
       status: finished.status,
@@ -225,7 +234,8 @@ async function runJob(
   return {
     city: job.city,
     searchTerm: job.searchTerm,
-    locationQuery: job.locationQuery,
+    mapsUrl: job.mapsUrl,
+    locationLabel: job.locationLabel,
     runId: run.id,
     datasetId: finished.defaultDatasetId,
     status: finished.status,
@@ -257,29 +267,44 @@ async function mapPool<T, R>(
 }
 
 async function main() {
-  const { market, mode, query, maxPerSearch, concurrency, cities } = parseArgs(
-    process.argv.slice(2),
-  );
+  const {
+    market,
+    mode,
+    query,
+    maxPerSearch,
+    concurrency,
+    cities,
+    allTerms,
+  } = parseArgs(process.argv.slice(2));
   const token = apifyToken();
 
-  let jobs =
+  let jobs: MarketDiscoveryJob[] =
     mode === "discovery"
-      ? marketDiscoveryJobs(market)
-      : marketLocationQueries(market).map((locationQuery) => ({
-          city: locationQuery.split(",")[0].trim(),
-          locationQuery,
-          searchTerm: query,
-        }));
+      ? marketDiscoveryJobs(
+          market,
+          allTerms ? market.roofingSearchTerms : [PRIMARY_ROOFING_SEARCH_TERM],
+        )
+      : market.cities.map((city) => {
+          const center = getCityCenter(market, city);
+          return {
+            city,
+            searchTerm: query,
+            mapsUrl: mapsSearchUrl(query, center),
+            locationLabel: `${city}, ${market.state}, USA`,
+          };
+        });
 
   if (cities && cities.length > 0) {
     jobs = cities.map((city) => {
       const canonical =
         market.cities.find((c) => c.toLowerCase() === city.toLowerCase()) ??
         city;
+      const center = getCityCenter(market, canonical);
       return {
         city: canonical,
-        locationQuery: `${canonical}, ${market.state}, USA`,
         searchTerm: query,
+        mapsUrl: mapsSearchUrl(query, center),
+        locationLabel: `${canonical}, ${market.state}, USA`,
       };
     });
     const unknown = cities.filter(
@@ -294,7 +319,7 @@ async function main() {
   }
 
   console.log(
-    `Market ${market.id}: ${jobs.length} jobs, mode=${mode}, maxPerSearch=${maxPerSearch}, concurrency=${concurrency}`,
+    `Market ${market.id}: ${jobs.length} jobs (map startUrls), mode=${mode}, maxPerSearch=${maxPerSearch}, concurrency=${concurrency}`,
   );
 
   const results = await mapPool(jobs, concurrency, (job) =>
@@ -307,7 +332,12 @@ async function main() {
       const place = item as { placeId?: string };
       if (!place.placeId) continue;
       if (!byPlaceId.has(place.placeId)) {
-        byPlaceId.set(place.placeId, item);
+        byPlaceId.set(place.placeId, {
+          ...place,
+          // Stamp scrape city for imports when Apify leaves city null
+          _vezztCity: result.city,
+          _vezztMapsUrl: result.mapsUrl,
+        });
       }
     }
   }
@@ -325,6 +355,7 @@ async function main() {
     JSON.stringify(
       {
         marketId: market.id,
+        method: "maps_startUrls",
         mode,
         maxPerSearch,
         concurrency,
@@ -332,7 +363,8 @@ async function main() {
         runs: results.map((r) => ({
           city: r.city,
           searchTerm: r.searchTerm,
-          locationQuery: r.locationQuery,
+          mapsUrl: r.mapsUrl,
+          locationLabel: r.locationLabel,
           runId: r.runId,
           datasetId: r.datasetId,
           status: r.status,
@@ -353,6 +385,7 @@ async function main() {
     JSON.stringify(
       {
         marketId: market.id,
+        method: "maps_startUrls",
         jobs: jobs.length,
         placesReturnedRaw: results.reduce((n, r) => n + r.itemCount, 0),
         placesReturnedDeduped: merged.length,
