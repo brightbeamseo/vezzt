@@ -12,7 +12,6 @@ export function median(values: Array<number | null>): number | null {
   return nums[mid]!;
 }
 
-/** Average percentile rank (0–100) of `value` within `universe`. */
 export function percentileRank(
   value: number | null,
   universe: Array<number | null>,
@@ -36,7 +35,7 @@ export function summarizeMarketComparisonRows(
       (r) => r.hasMultipleReviewSnapshots,
     ).length,
     medianReviews: median(rows.map((r) => r.reviewCount)),
-    medianOrganicTraffic: median(rows.map((r) => r.localOrganicTraffic)),
+    medianOrganicTraffic: median(rows.map((r) => r.organicTraffic.value)),
     medianSolv: median(rows.map((r) => r.shareOfLocalVoice)),
     averageDataCompleteness:
       rows.length === 0
@@ -62,26 +61,26 @@ export function getNumericSortValue(
       return row.weeklyReviewVelocity;
     case "estimatedMonthlyReviewVelocity":
       return row.estimatedMonthlyReviewVelocity;
-    case "localOrganicTraffic":
-      return row.localOrganicTraffic;
-    case "localOrganicKeywords":
-      return row.localOrganicKeywords;
-    case "localKeywordsTop3":
-      return row.localKeywordsTop3;
-    case "localReferringDomains":
-      return row.localReferringDomains;
-    case "localBacklinks":
-      return row.localBacklinks;
-    case "localTrafficValue":
-      return row.localTrafficValue;
-    case "parentDomainRating":
-      return row.parentDomainRating;
+    case "organicTraffic":
+      return row.organicTraffic.value;
+    case "organicKeywords":
+      return row.organicKeywords.value;
+    case "keywordsTop3":
+      return row.keywordsTop3.value;
+    case "referringDomains":
+      return row.referringDomains.value;
+    case "backlinks":
+      return row.backlinks.value;
+    case "trafficValue":
+      return row.trafficValue.value;
+    case "domainRating":
+      return row.domainRating.value;
     case "parentOrganicTraffic":
-      return row.parentOrganicTraffic;
+      return row.parentOrganicTraffic?.value ?? null;
     case "parentOrganicKeywords":
-      return row.parentOrganicKeywords;
+      return row.parentOrganicKeywords?.value ?? null;
     case "parentReferringDomains":
-      return row.parentReferringDomains;
+      return row.parentReferringDomains?.value ?? null;
     case "shareOfLocalVoice":
       return row.shareOfLocalVoice;
     case "averageGridRank":

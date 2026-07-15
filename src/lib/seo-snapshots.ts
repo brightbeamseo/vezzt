@@ -1,7 +1,15 @@
 import type { Client } from "pg";
 import { connectAdminPg } from "@/lib/admin-db";
 import type { AhrefsSummaryMetrics } from "@/lib/ahrefs";
-import type { AnalysisMode, SeoScope } from "@/lib/companies";
+import type {
+  AnalysisMode,
+  CompanyScale,
+  SeoScope,
+} from "@/lib/companies";
+import {
+  determineSearchScope,
+  type SearchScope,
+} from "@/lib/search-scope";
 
 export type SeoSnapshotRow = {
   id: string;
@@ -13,6 +21,7 @@ export type SeoSnapshotRow = {
   analysisMode: AnalysisMode;
   parentDomain: string | null;
   locationPath: string | null;
+  searchScope: SearchScope;
   snapshotDate: string;
   domainRating: number | null;
   referringDomains: number | null;
@@ -34,6 +43,7 @@ type DbSeoRow = {
   analysis_mode: AnalysisMode;
   parent_domain: string | null;
   location_path: string | null;
+  search_scope: SearchScope;
   snapshot_date: string;
   domain_rating: string | number | null;
   referring_domains: number | null;
@@ -56,6 +66,7 @@ function mapRow(row: DbSeoRow): SeoSnapshotRow {
     analysisMode: row.analysis_mode,
     parentDomain: row.parent_domain,
     locationPath: row.location_path,
+    searchScope: row.search_scope ?? "unknown",
     snapshotDate: row.snapshot_date,
     domainRating:
       row.domain_rating === null || row.domain_rating === undefined
@@ -91,30 +102,48 @@ export async function upsertSeoSnapshot(input: {
   rawResponse: unknown;
   provider?: string;
   client?: Client;
+  /** Explicit search_scope; otherwise derived from company + analysis shape. */
+  searchScope?: SearchScope;
+  companyScale?: CompanyScale | null;
+  locationCount?: number | null;
 }): Promise<SeoSnapshotRow> {
   const owns = !input.client;
   const db = input.client ?? (await connectAdminPg());
+
+  const searchScope =
+    input.searchScope ??
+    determineSearchScope({
+      scope: input.scope,
+      analysisMode: input.analysisMode,
+      analysisTarget: input.analysisTarget,
+      locationPath: input.locationPath,
+      companyScale: input.companyScale,
+      locationCount: input.locationCount,
+    }).searchScope;
 
   try {
     const { rows } = await db.query<DbSeoRow>(
       `insert into public.seo_snapshots (
         business_id, provider, domain, snapshot_date,
         scope, analysis_target, analysis_mode, parent_domain, location_path,
+        search_scope,
         domain_rating, referring_domains, backlinks,
         organic_traffic, organic_keywords, organic_keywords_top3,
         traffic_value, raw_response
       ) values (
         $1, $2, $3, $4::date,
         $5, $6, $7, $8, $9,
-        $10, $11, $12,
-        $13, $14, $15,
-        $16, $17::jsonb
+        $10,
+        $11, $12, $13,
+        $14, $15, $16,
+        $17, $18::jsonb
       )
       on conflict (business_id, provider, snapshot_date, scope, analysis_target, analysis_mode)
       do update set
         domain = excluded.domain,
         parent_domain = excluded.parent_domain,
         location_path = excluded.location_path,
+        search_scope = excluded.search_scope,
         domain_rating = excluded.domain_rating,
         referring_domains = excluded.referring_domains,
         backlinks = excluded.backlinks,
@@ -126,6 +155,7 @@ export async function upsertSeoSnapshot(input: {
       returning
         id, business_id, provider, domain, snapshot_date::text,
         scope, analysis_target, analysis_mode, parent_domain, location_path,
+        search_scope,
         domain_rating, referring_domains, backlinks,
         organic_traffic, organic_keywords, organic_keywords_top3,
         traffic_value, created_at`,
@@ -139,6 +169,7 @@ export async function upsertSeoSnapshot(input: {
         input.analysisMode,
         input.parentDomain,
         input.locationPath,
+        searchScope,
         input.metrics.domainRating,
         input.metrics.referringDomains,
         input.metrics.backlinks,
@@ -205,6 +236,7 @@ export async function findCompanyDomainSnapshot(input: {
       `select
         id, business_id, provider, domain, snapshot_date::text,
         scope, analysis_target, analysis_mode, parent_domain, location_path,
+        search_scope,
         domain_rating, referring_domains, backlinks,
         organic_traffic, organic_keywords, organic_keywords_top3,
         traffic_value, created_at

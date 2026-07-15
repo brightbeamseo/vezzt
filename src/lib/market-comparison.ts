@@ -4,7 +4,12 @@ import { percentileRank } from "@/lib/market-comparison-utils";
 import type {
   MarketComparisonPayload,
   MarketComparisonRow,
+  ScopedMetric,
 } from "@/lib/market-comparison-types";
+import {
+  parseSearchScope,
+  type SearchScope,
+} from "@/lib/search-scope";
 
 function toNumber(value: number | string | null | undefined): number | null {
   if (value === null || value === undefined || value === "") return null;
@@ -18,10 +23,6 @@ function daysBetween(a: string, b: string): number {
   return Math.abs(db - da) / (24 * 60 * 60 * 1000);
 }
 
-function usesParentAsLocal(scale: string | null, ownership: string | null): boolean {
-  return scale === "single_location" && ownership === "independent";
-}
-
 function coverageRatio(
   found: number | null,
   total: number | null,
@@ -33,6 +34,13 @@ function coverageRatio(
 function buildAhrefsUrl(target: string | null | undefined): string | null {
   if (!target) return null;
   return `https://app.ahrefs.com/v2-site-explorer/overview?target=${encodeURIComponent(target)}`;
+}
+
+function scoped(
+  value: number | null,
+  searchScope: SearchScope,
+): ScopedMetric {
+  return { value, searchScope };
 }
 
 type SignalRow = {
@@ -66,6 +74,8 @@ type SignalRow = {
   estimated_monthly_review_velocity_metrics: number | string | null;
   parent_domain: string | null;
   parent_analysis_target: string | null;
+  parent_analysis_mode: string | null;
+  parent_search_scope: string | null;
   parent_domain_rating: number | string | null;
   parent_organic_traffic: number | null;
   parent_organic_keywords: number | null;
@@ -74,6 +84,9 @@ type SignalRow = {
   parent_traffic_value: number | string | null;
   local_seo_id: string | null;
   local_analysis_target: string | null;
+  local_analysis_mode: string | null;
+  local_search_scope: string | null;
+  local_domain_rating: number | string | null;
   local_organic_traffic: number | null;
   local_organic_keywords: number | null;
   local_organic_keywords_top3: number | null;
@@ -92,43 +105,86 @@ type SignalRow = {
   latest_data_refresh_at: string | null;
 };
 
-function mapSignalRow(raw: SignalRow): Omit<MarketComparisonRow, "percentiles"> {
-  const scale = raw.company_scale;
-  const ownership = raw.ownership_model;
-  const hasLocalSeo = Boolean(raw.local_seo_id);
-  const localFromParent = !hasLocalSeo && usesParentAsLocal(scale, ownership);
+/**
+ * Prefer Location-scope Ahrefs for primary columns.
+ * Fall back to company_domain snapshot (Company or Mixed) with its badge.
+ * Never treat Mixed as Location.
+ */
+function resolvePrimaryAhrefs(raw: SignalRow): {
+  searchScope: SearchScope;
+  analysisTarget: string | null;
+  analysisMode: string | null;
+  organicTraffic: ScopedMetric;
+  organicKeywords: ScopedMetric;
+  keywordsTop3: ScopedMetric;
+  referringDomains: ScopedMetric;
+  backlinks: ScopedMetric;
+  trafficValue: ScopedMetric;
+  domainRating: ScopedMetric;
+  hasLocationSeo: boolean;
+  mixedWithoutLocationWarning: boolean;
+  parentOrganicTraffic: ScopedMetric | null;
+  parentOrganicKeywords: ScopedMetric | null;
+  parentReferringDomains: ScopedMetric | null;
+  parentSearchScope: SearchScope | null;
+} {
+  const locationScope = parseSearchScope(raw.local_search_scope);
+  const parentScope = parseSearchScope(raw.parent_search_scope);
+  const hasLocationSeo = Boolean(raw.local_seo_id);
 
-  const localOrganicTraffic = hasLocalSeo
-    ? raw.local_organic_traffic
-    : localFromParent
-      ? raw.parent_organic_traffic
-      : null;
-  const localOrganicKeywords = hasLocalSeo
-    ? raw.local_organic_keywords
-    : localFromParent
-      ? raw.parent_organic_keywords
-      : null;
-  const localKeywordsTop3 = hasLocalSeo ? raw.local_organic_keywords_top3 : null;
-  const localReferringDomains = hasLocalSeo
-    ? raw.local_referring_domains
-    : localFromParent
-      ? raw.parent_referring_domains
-      : null;
-  const localBacklinks = hasLocalSeo
-    ? raw.local_backlinks
-    : localFromParent
-      ? raw.parent_backlinks
-      : null;
-  const localTrafficValue = hasLocalSeo
-    ? toNumber(raw.local_traffic_value)
-    : localFromParent
-      ? toNumber(raw.parent_traffic_value)
-      : null;
-  const localAnalysisTarget = hasLocalSeo
-    ? raw.local_analysis_target
-    : localFromParent
-      ? raw.parent_analysis_target
-      : null;
+  if (hasLocationSeo) {
+    const locScope: SearchScope =
+      locationScope === "unknown" ? "location" : locationScope;
+    return {
+      searchScope: locScope,
+      analysisTarget: raw.local_analysis_target,
+      analysisMode: raw.local_analysis_mode,
+      organicTraffic: scoped(raw.local_organic_traffic, locScope),
+      organicKeywords: scoped(raw.local_organic_keywords, locScope),
+      keywordsTop3: scoped(raw.local_organic_keywords_top3, locScope),
+      referringDomains: scoped(raw.local_referring_domains, locScope),
+      backlinks: scoped(raw.local_backlinks, locScope),
+      trafficValue: scoped(toNumber(raw.local_traffic_value), locScope),
+      // DR usually lives on the parent domain; badge that value Mixed/Company.
+      domainRating: scoped(
+        toNumber(raw.local_domain_rating) ?? toNumber(raw.parent_domain_rating),
+        toNumber(raw.local_domain_rating) != null ? locScope : parentScope,
+      ),
+      hasLocationSeo: true,
+      mixedWithoutLocationWarning: false,
+      parentOrganicTraffic: scoped(raw.parent_organic_traffic, parentScope),
+      parentOrganicKeywords: scoped(raw.parent_organic_keywords, parentScope),
+      parentReferringDomains: scoped(raw.parent_referring_domains, parentScope),
+      parentSearchScope: parentScope,
+    };
+  }
+
+  // No location snapshot — use company-domain metrics with their classified scope.
+  const companyScope = parentScope;
+  const mixedWithoutLocationWarning = companyScope === "mixed";
+
+  return {
+    searchScope: companyScope,
+    analysisTarget: raw.parent_analysis_target,
+    analysisMode: raw.parent_analysis_mode,
+    organicTraffic: scoped(raw.parent_organic_traffic, companyScope),
+    organicKeywords: scoped(raw.parent_organic_keywords, companyScope),
+    keywordsTop3: scoped(null, companyScope),
+    referringDomains: scoped(raw.parent_referring_domains, companyScope),
+    backlinks: scoped(raw.parent_backlinks, companyScope),
+    trafficValue: scoped(toNumber(raw.parent_traffic_value), companyScope),
+    domainRating: scoped(toNumber(raw.parent_domain_rating), companyScope),
+    hasLocationSeo: false,
+    mixedWithoutLocationWarning,
+    parentOrganicTraffic: null,
+    parentOrganicKeywords: null,
+    parentReferringDomains: null,
+    parentSearchScope: companyScope === "unknown" ? null : companyScope,
+  };
+}
+
+function mapSignalRow(raw: SignalRow): Omit<MarketComparisonRow, "percentiles"> {
+  const ahrefs = resolvePrimaryAhrefs(raw);
 
   const gained = raw.reviews_gained_since_prior;
   let weeklyReviewVelocity: number | null = null;
@@ -158,31 +214,27 @@ function mapSignalRow(raw: SignalRow): Omit<MarketComparisonRow, "percentiles"> 
     raw.total_grid_points,
   );
 
-  const parentDr = toNumber(raw.parent_domain_rating);
   const hasAhrefs =
-    localOrganicTraffic != null ||
-    localOrganicKeywords != null ||
-    parentDr != null ||
-    raw.parent_organic_traffic != null;
+    ahrefs.organicTraffic.value != null ||
+    ahrefs.organicKeywords.value != null ||
+    ahrefs.domainRating.value != null ||
+    ahrefs.referringDomains.value != null;
   const hasGeogrid = Boolean(raw.map_rank_id);
   const reviewSnapshotCount = raw.review_snapshot_count ?? 0;
 
   const fields: { key: string; present: boolean }[] = [
     { key: "reviews", present: raw.review_count != null },
     { key: "rating", present: raw.average_rating != null },
-    { key: "local_organic_traffic", present: localOrganicTraffic != null },
-    { key: "local_organic_keywords", present: localOrganicKeywords != null },
-    { key: "local_referring_domains", present: localReferringDomains != null },
-    { key: "parent_domain_rating", present: parentDr != null },
+    { key: "organic_traffic", present: ahrefs.organicTraffic.value != null },
+    { key: "organic_keywords", present: ahrefs.organicKeywords.value != null },
+    { key: "referring_domains", present: ahrefs.referringDomains.value != null },
+    { key: "domain_rating", present: ahrefs.domainRating.value != null },
     { key: "solv", present: solv != null },
     { key: "agr", present: agr != null },
     { key: "top3", present: top3Coverage != null },
   ];
   const presentCount = fields.filter((f) => f.present).length;
   const missingFields = fields.filter((f) => !f.present).map((f) => f.key);
-
-  const ahrefsTarget =
-    localAnalysisTarget ?? raw.parent_analysis_target ?? raw.parent_domain;
 
   return {
     businessId: raw.business_id,
@@ -196,12 +248,13 @@ function mapSignalRow(raw: SignalRow): Omit<MarketComparisonRow, "percentiles"> 
     marketId: raw.market_id,
     qualificationStatus: raw.qualification_status,
     isQualified: raw.is_qualified,
-    analysisTarget: raw.analysis_target,
-    analysisMode: raw.analysis_mode,
+    analysisTarget: ahrefs.analysisTarget,
+    analysisMode: ahrefs.analysisMode,
+    searchScope: ahrefs.searchScope,
     companyId: raw.company_id,
     companyName: raw.company_name,
-    companyScale: scale,
-    ownershipModel: ownership,
+    companyScale: raw.company_scale,
+    ownershipModel: raw.ownership_model,
     companyLocationCount: raw.company_location_count,
     companyRootDomain: raw.company_root_domain,
     classificationIsManual: Boolean(raw.classification_is_manual),
@@ -212,20 +265,21 @@ function mapSignalRow(raw: SignalRow): Omit<MarketComparisonRow, "percentiles"> 
     weeklyReviewVelocity,
     estimatedMonthlyReviewVelocity,
     reviewSnapshotCount,
-    localOrganicTraffic,
-    localOrganicKeywords,
-    localKeywordsTop3,
-    localReferringDomains,
-    localBacklinks,
-    localTrafficValue,
-    localAnalysisTarget,
-    parentDomainRating: parentDr,
-    parentOrganicTraffic: raw.parent_organic_traffic,
-    parentOrganicKeywords: raw.parent_organic_keywords,
-    parentReferringDomains: raw.parent_referring_domains,
-    parentDomain: raw.parent_domain,
+    organicTraffic: ahrefs.organicTraffic,
+    organicKeywords: ahrefs.organicKeywords,
+    keywordsTop3: ahrefs.keywordsTop3,
+    referringDomains: ahrefs.referringDomains,
+    backlinks: ahrefs.backlinks,
+    trafficValue: ahrefs.trafficValue,
+    domainRating: ahrefs.domainRating,
+    mixedWithoutLocationWarning: ahrefs.mixedWithoutLocationWarning,
+    hasLocationSeo: ahrefs.hasLocationSeo,
+    parentOrganicTraffic: ahrefs.parentOrganicTraffic,
+    parentOrganicKeywords: ahrefs.parentOrganicKeywords,
+    parentReferringDomains: ahrefs.parentReferringDomains,
+    parentSearchScope: ahrefs.parentSearchScope,
     parentAnalysisTarget: raw.parent_analysis_target,
-    localAhrefsFromParent: localFromParent,
+    parentDomain: raw.parent_domain,
     shareOfLocalVoice: solv,
     averageGridRank: agr,
     averageTotalGridRank: atgr,
@@ -242,15 +296,13 @@ function mapSignalRow(raw: SignalRow): Omit<MarketComparisonRow, "percentiles"> 
     hasAhrefs,
     hasGeogrid,
     hasMultipleReviewSnapshots: reviewSnapshotCount >= 2,
-    ahrefsUrl: buildAhrefsUrl(ahrefsTarget),
+    ahrefsUrl: buildAhrefsUrl(
+      ahrefs.analysisTarget ?? raw.parent_analysis_target ?? raw.parent_domain,
+    ),
     geogridUrl: `/businesses/${raw.business_id}`,
   };
 }
 
-/**
- * Load flattened current-state signals for a market + sector.
- * One DB query via business_current_signals (no N+1).
- */
 export async function getMarketComparisonSignals(input: {
   marketId: string;
   sector: string;
@@ -280,21 +332,18 @@ export async function getMarketComparisonSignals(input: {
   const mapped = rawRows.map(mapSignalRow);
 
   const reviewUniverse = mapped.map((r) => r.reviewCount);
-  const trafficUniverse = mapped.map((r) => r.localOrganicTraffic);
+  const trafficUniverse = mapped.map((r) => r.organicTraffic.value);
   const solvUniverse = mapped.map((r) => r.shareOfLocalVoice);
-  const rdUniverse = mapped.map((r) => r.localReferringDomains);
+  const rdUniverse = mapped.map((r) => r.referringDomains.value);
 
   const rows: MarketComparisonRow[] = mapped.map((row) => ({
     ...row,
     percentiles: {
       reviewCount: percentileRank(row.reviewCount, reviewUniverse),
-      localOrganicTraffic: percentileRank(
-        row.localOrganicTraffic,
-        trafficUniverse,
-      ),
+      organicTraffic: percentileRank(row.organicTraffic.value, trafficUniverse),
       shareOfLocalVoice: percentileRank(row.shareOfLocalVoice, solvUniverse),
-      localReferringDomains: percentileRank(
-        row.localReferringDomains,
+      referringDomains: percentileRank(
+        row.referringDomains.value,
         rdUniverse,
       ),
     },

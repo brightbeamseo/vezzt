@@ -3,10 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import {
-  COMPANY_SCALES,
-  OWNERSHIP_MODELS,
-} from "@/lib/companies";
+import { COMPANY_SCALES, OWNERSHIP_MODELS } from "@/lib/companies";
 import { MARKETS } from "@/lib/markets";
 import {
   getNumericSortValue,
@@ -21,8 +18,15 @@ import {
   type MarketComparisonFilters,
   type MarketComparisonPayload,
   type MarketComparisonRow,
+  type ScopedMetric,
 } from "@/lib/market-comparison-types";
 import type { QualificationStatus } from "@/lib/qualification";
+import {
+  SEARCH_SCOPE_LABELS,
+  SEARCH_SCOPE_TOOLTIPS,
+  SEARCH_SCOPES,
+  type SearchScope,
+} from "@/lib/search-scope";
 
 type SortDir = "asc" | "desc";
 
@@ -39,58 +43,44 @@ const QUAL_STATUSES: Array<QualificationStatus | "all"> = [
 ];
 
 const COMPARE_FIELDS: Array<{
-  key: keyof MarketComparisonRow;
   label: string;
   format: (row: MarketComparisonRow) => string;
 }> = [
+  { label: "Reviews", format: (r) => formatInt(r.reviewCount) },
   {
-    key: "reviewCount",
-    label: "Reviews",
-    format: (r) => formatInt(r.reviewCount),
-  },
-  {
-    key: "rating",
     label: "Rating",
     format: (r) => (r.rating == null ? "—" : r.rating.toFixed(1)),
   },
   {
-    key: "weeklyReviewVelocity",
-    label: "Review velocity",
-    format: (r) => formatFloat(r.weeklyReviewVelocity, 2),
+    label: "Organic Traffic",
+    format: (r) =>
+      `${formatInt(r.organicTraffic.value)} (${SEARCH_SCOPE_LABELS[r.organicTraffic.searchScope]})`,
   },
   {
-    key: "localOrganicTraffic",
-    label: "Organic traffic",
-    format: (r) => formatInt(r.localOrganicTraffic),
+    label: "Organic Keywords",
+    format: (r) =>
+      `${formatInt(r.organicKeywords.value)} (${SEARCH_SCOPE_LABELS[r.organicKeywords.searchScope]})`,
   },
   {
-    key: "localOrganicKeywords",
-    label: "Organic keywords",
-    format: (r) => formatInt(r.localOrganicKeywords),
+    label: "Referring Domains",
+    format: (r) =>
+      `${formatInt(r.referringDomains.value)} (${SEARCH_SCOPE_LABELS[r.referringDomains.searchScope]})`,
   },
   {
-    key: "localReferringDomains",
-    label: "Referring domains",
-    format: (r) => formatInt(r.localReferringDomains),
+    label: "Domain Rating",
+    format: (r) =>
+      `${formatFloat(r.domainRating.value, 1)} (${SEARCH_SCOPE_LABELS[r.domainRating.searchScope]})`,
   },
   {
-    key: "parentDomainRating",
-    label: "Parent DR",
-    format: (r) => formatFloat(r.parentDomainRating, 1),
-  },
-  {
-    key: "shareOfLocalVoice",
     label: "SoLV",
     format: (r) => formatPct(r.shareOfLocalVoice),
   },
   {
-    key: "averageGridRank",
-    label: "AGR",
+    label: "Avg Rank",
     format: (r) => formatFloat(r.averageGridRank, 2),
   },
   {
-    key: "top3Coverage",
-    label: "Top-3 coverage",
+    label: "Top 3",
     format: (r) => formatPct(r.top3Coverage),
   },
 ];
@@ -123,6 +113,69 @@ function csvEscape(value: string): string {
   return value;
 }
 
+const SCOPE_BADGE_CLASS: Record<SearchScope, string> = {
+  location: "bg-emerald-100 text-emerald-900",
+  company: "bg-sky-100 text-sky-900",
+  mixed: "bg-amber-100 text-amber-950",
+  unknown: "bg-neutral-200 text-neutral-700",
+};
+
+function SearchScopeBadge({ scope }: { scope: SearchScope }) {
+  return (
+    <span
+      className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-medium ${SCOPE_BADGE_CLASS[scope]}`}
+      title={SEARCH_SCOPE_TOOLTIPS[scope]}
+    >
+      {SEARCH_SCOPE_LABELS[scope]}
+    </span>
+  );
+}
+
+function ScopedValueCell({
+  metric,
+  display,
+  percentile,
+  compact,
+  warnMixed,
+}: {
+  metric: ScopedMetric;
+  display: string;
+  percentile?: number | null;
+  compact: boolean;
+  warnMixed?: boolean;
+}) {
+  if (metric.value == null) {
+    return <span className="text-neutral-400">—</span>;
+  }
+  return (
+    <div className={compact ? "space-y-0.5" : "space-y-1"}>
+      <div className="tabular-nums text-vezzt-950">{display}</div>
+      <SearchScopeBadge scope={metric.searchScope} />
+      {warnMixed && metric.searchScope === "mixed" ? (
+        <div className="text-[10px] text-amber-800">
+          Not location-specific — not directly comparable to Location metrics
+        </div>
+      ) : null}
+      {percentile != null ? (
+        <>
+          <div
+            className="h-1.5 w-full overflow-hidden rounded bg-neutral-100"
+            title={formatOrdinal(percentile) ?? undefined}
+          >
+            <div
+              className="h-full rounded bg-vezzt-600/80"
+              style={{ width: `${Math.max(4, Math.min(100, percentile))}%` }}
+            />
+          </div>
+          <div className="text-[10px] text-neutral-500">
+            {formatOrdinal(percentile)}
+          </div>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
 function applyFilters(
   rows: MarketComparisonRow[],
   filters: MarketComparisonFilters,
@@ -148,6 +201,12 @@ function applyFilters(
     ) {
       return false;
     }
+    if (
+      filters.searchScope !== "all" &&
+      row.searchScope !== filters.searchScope
+    ) {
+      return false;
+    }
     if (filters.hasAhrefs && !row.hasAhrefs) return false;
     if (filters.hasGeogrid && !row.hasGeogrid) return false;
     if (filters.hasMultipleReviewSnapshots && !row.hasMultipleReviewSnapshots) {
@@ -158,43 +217,6 @@ function applyFilters(
   });
 }
 
-function PercentileCell({
-  value,
-  percentile,
-  display,
-  compact,
-}: {
-  value: number | null;
-  percentile: number | null;
-  display: string;
-  compact: boolean;
-}) {
-  if (value == null) {
-    return <span className="text-neutral-400">—</span>;
-  }
-  return (
-    <div className={compact ? "space-y-0.5" : "space-y-1"}>
-      <div className="tabular-nums text-vezzt-950">{display}</div>
-      {percentile != null ? (
-        <>
-          <div
-            className="h-1.5 w-full overflow-hidden rounded bg-neutral-100"
-            title={formatOrdinal(percentile) ?? undefined}
-          >
-            <div
-              className="h-full rounded bg-vezzt-600/80"
-              style={{ width: `${Math.max(4, Math.min(100, percentile))}%` }}
-            />
-          </div>
-          <div className="text-[10px] text-neutral-500">
-            {formatOrdinal(percentile)}
-          </div>
-        </>
-      ) : null}
-    </div>
-  );
-}
-
 export function MarketComparisonDashboard({ payload }: Props) {
   const router = useRouter();
   const [filters, setFilters] = useState<MarketComparisonFilters>({
@@ -202,11 +224,12 @@ export function MarketComparisonDashboard({ payload }: Props) {
     marketId: payload.marketId,
     sector: payload.sector,
   });
-  const [sortKey, setSortKey] = useState<MarketComparisonColumnId>("reviewCount");
+  const [sortKey, setSortKey] =
+    useState<MarketComparisonColumnId>("reviewCount");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
-  const [visibleOrdered, setVisibleOrdered] = useState<MarketComparisonColumnId[]>(
-    DEFAULT_VISIBLE_COLUMNS,
-  );
+  const [visibleOrdered, setVisibleOrdered] = useState<
+    MarketComparisonColumnId[]
+  >(DEFAULT_VISIBLE_COLUMNS);
   const [columnPanelOpen, setColumnPanelOpen] = useState(false);
   const [compact, setCompact] = useState(true);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -233,12 +256,11 @@ export function MarketComparisonDashboard({ payload }: Props) {
         if (av == null && bv == null) return 0;
         if (av == null) return 1;
         if (bv == null) return -1;
-        // Lower AGR is better — still sort by raw number; user picks dir.
         const cmp = av - bv;
         return sortDir === "asc" ? cmp : -cmp;
       }
-      const as = String(cellText(a, sortKey) ?? "");
-      const bs = String(cellText(b, sortKey) ?? "");
+      const as = cellExport(a, sortKey);
+      const bs = cellExport(b, sortKey);
       const cmp = as.localeCompare(bs);
       return sortDir === "asc" ? cmp : -cmp;
     });
@@ -264,12 +286,8 @@ export function MarketComparisonDashboard({ payload }: Props) {
   function toggleSelect(id: string) {
     setSelected((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        if (next.size >= 5) return prev;
-        next.add(id);
-      }
+      if (next.has(id)) next.delete(id);
+      else if (next.size < 5) next.add(id);
       return next;
     });
   }
@@ -278,9 +296,7 @@ export function MarketComparisonDashboard({ payload }: Props) {
     setVisibleOrdered((prev) => {
       if (prev.includes(id)) return prev.filter((c) => c !== id);
       const order = MARKET_COMPARISON_COLUMNS.map((c) => c.id);
-      return [...prev, id].sort(
-        (a, b) => order.indexOf(a) - order.indexOf(b),
-      );
+      return [...prev, id].sort((a, b) => order.indexOf(a) - order.indexOf(b));
     });
   }
 
@@ -303,6 +319,18 @@ export function MarketComparisonDashboard({ payload }: Props) {
       .filter(Boolean);
 
     const headers = cols.flatMap((c) => {
+      const scopedIds = new Set([
+        "organicTraffic",
+        "organicKeywords",
+        "domainRating",
+        "referringDomains",
+        "keywordsTop3",
+        "backlinks",
+        "trafficValue",
+      ]);
+      if (scopedIds.has(c.id)) {
+        return [c.label, `${c.label} Search Scope`];
+      }
       if (c.percentileOf) {
         return [c.label, `${c.label} percentile`];
       }
@@ -315,6 +343,18 @@ export function MarketComparisonDashboard({ payload }: Props) {
         cols
           .flatMap((c) => {
             const raw = cellExport(row, c.id);
+            const scopedIds = new Set([
+              "organicTraffic",
+              "organicKeywords",
+              "domainRating",
+              "referringDomains",
+              "keywordsTop3",
+              "backlinks",
+              "trafficValue",
+            ]);
+            if (scopedIds.has(c.id)) {
+              return [raw, cellScopeExport(row, c.id)];
+            }
             if (c.percentileOf) {
               const p = row.percentiles[c.percentileOf];
               return [raw, p == null ? "" : String(p)];
@@ -341,7 +381,6 @@ export function MarketComparisonDashboard({ payload }: Props) {
 
   return (
     <div className="space-y-4">
-      {/* Summary */}
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
         {[
           { label: "In view", value: String(summary.businessCount) },
@@ -379,7 +418,6 @@ export function MarketComparisonDashboard({ payload }: Props) {
         ))}
       </div>
 
-      {/* Filters */}
       <div className="rounded-lg border border-neutral-200 bg-white p-3">
         <div className="flex flex-wrap items-end gap-3">
           <label className="text-xs text-neutral-600">
@@ -463,7 +501,7 @@ export function MarketComparisonDashboard({ payload }: Props) {
             </select>
           </label>
           <label className="text-xs text-neutral-600">
-            Ownership
+            Ownership model
             <select
               className="mt-1 block rounded border border-neutral-300 bg-white px-2 py-1.5 text-sm"
               value={filters.ownershipModel}
@@ -479,6 +517,27 @@ export function MarketComparisonDashboard({ payload }: Props) {
               {OWNERSHIP_MODELS.map((s) => (
                 <option key={s} value={s}>
                   {s}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="text-xs text-neutral-600">
+            Search Scope
+            <select
+              className="mt-1 block rounded border border-neutral-300 bg-white px-2 py-1.5 text-sm"
+              value={filters.searchScope}
+              onChange={(e) =>
+                setFilters((f) => ({
+                  ...f,
+                  searchScope: e.target
+                    .value as MarketComparisonFilters["searchScope"],
+                }))
+              }
+            >
+              <option value="all">All</option>
+              {SEARCH_SCOPES.map((s) => (
+                <option key={s} value={s} title={SEARCH_SCOPE_TOOLTIPS[s]}>
+                  {SEARCH_SCOPE_LABELS[s]}
                 </option>
               ))}
             </select>
@@ -525,13 +584,22 @@ export function MarketComparisonDashboard({ payload }: Props) {
             </label>
           ))}
         </div>
-        <p className="mt-2 text-[11px] text-neutral-500">
-          Percentiles are relative to the loaded market + sector cohort (
-          {payload.rows.length} businesses), not the narrower table filter.
-        </p>
+        <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-neutral-600">
+          {(Object.keys(SEARCH_SCOPE_TOOLTIPS) as SearchScope[]).map((s) => (
+            <span
+              key={s}
+              className="inline-flex items-center gap-1 rounded border border-neutral-200 bg-neutral-50 px-2 py-1"
+              title={SEARCH_SCOPE_TOOLTIPS[s]}
+            >
+              <SearchScopeBadge scope={s} />
+              <span className="max-w-[14rem] truncate">
+                {SEARCH_SCOPE_TOOLTIPS[s]}
+              </span>
+            </span>
+          ))}
+        </div>
       </div>
 
-      {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
@@ -626,7 +694,6 @@ export function MarketComparisonDashboard({ payload }: Props) {
         </div>
       ) : null}
 
-      {/* Table */}
       <div className="overflow-x-auto rounded-xl border border-neutral-200 bg-white shadow-sm">
         <table className="min-w-full text-left">
           <thead className="border-b border-neutral-200 bg-neutral-50 text-[11px] uppercase tracking-wide text-neutral-500">
@@ -689,7 +756,6 @@ export function MarketComparisonDashboard({ payload }: Props) {
         </table>
       </div>
 
-      {/* Comparison drawer */}
       {drawerOpen && selectedRows.length >= 2 ? (
         <div className="fixed inset-0 z-50 flex justify-end bg-black/30">
           <button
@@ -765,11 +831,34 @@ export function MarketComparisonDashboard({ payload }: Props) {
   );
 }
 
-function cellText(row: MarketComparisonRow, id: MarketComparisonColumnId): string {
-  return cellExport(row, id);
+function cellScopeExport(
+  row: MarketComparisonRow,
+  id: MarketComparisonColumnId,
+): string {
+  switch (id) {
+    case "organicTraffic":
+      return row.organicTraffic.searchScope;
+    case "organicKeywords":
+      return row.organicKeywords.searchScope;
+    case "domainRating":
+      return row.domainRating.searchScope;
+    case "referringDomains":
+      return row.referringDomains.searchScope;
+    case "keywordsTop3":
+      return row.keywordsTop3.searchScope;
+    case "backlinks":
+      return row.backlinks.searchScope;
+    case "trafficValue":
+      return row.trafficValue.searchScope;
+    default:
+      return "";
+  }
 }
 
-function cellExport(row: MarketComparisonRow, id: MarketComparisonColumnId): string {
+function cellExport(
+  row: MarketComparisonRow,
+  id: MarketComparisonColumnId,
+): string {
   switch (id) {
     case "businessName":
       return row.businessName;
@@ -783,6 +872,8 @@ function cellExport(row: MarketComparisonRow, id: MarketComparisonColumnId): str
       return row.ownershipModel ?? "";
     case "website":
       return row.websiteUrl ?? "";
+    case "searchScope":
+      return row.searchScope;
     case "analysisTarget":
       return row.analysisTarget ?? "";
     case "analysisMode":
@@ -805,40 +896,44 @@ function cellExport(row: MarketComparisonRow, id: MarketComparisonColumnId): str
       return row.estimatedMonthlyReviewVelocity == null
         ? ""
         : String(row.estimatedMonthlyReviewVelocity);
-    case "localOrganicTraffic":
-      return row.localOrganicTraffic == null
+    case "organicTraffic":
+      return row.organicTraffic.value == null
         ? ""
-        : String(row.localOrganicTraffic);
-    case "localOrganicKeywords":
-      return row.localOrganicKeywords == null
+        : String(row.organicTraffic.value);
+    case "organicKeywords":
+      return row.organicKeywords.value == null
         ? ""
-        : String(row.localOrganicKeywords);
-    case "localKeywordsTop3":
-      return row.localKeywordsTop3 == null ? "" : String(row.localKeywordsTop3);
-    case "localReferringDomains":
-      return row.localReferringDomains == null
+        : String(row.organicKeywords.value);
+    case "keywordsTop3":
+      return row.keywordsTop3.value == null
         ? ""
-        : String(row.localReferringDomains);
-    case "localBacklinks":
-      return row.localBacklinks == null ? "" : String(row.localBacklinks);
-    case "localTrafficValue":
-      return row.localTrafficValue == null ? "" : String(row.localTrafficValue);
-    case "parentDomainRating":
-      return row.parentDomainRating == null
+        : String(row.keywordsTop3.value);
+    case "referringDomains":
+      return row.referringDomains.value == null
         ? ""
-        : String(row.parentDomainRating);
+        : String(row.referringDomains.value);
+    case "backlinks":
+      return row.backlinks.value == null ? "" : String(row.backlinks.value);
+    case "trafficValue":
+      return row.trafficValue.value == null
+        ? ""
+        : String(row.trafficValue.value);
+    case "domainRating":
+      return row.domainRating.value == null
+        ? ""
+        : String(row.domainRating.value);
     case "parentOrganicTraffic":
-      return row.parentOrganicTraffic == null
+      return row.parentOrganicTraffic?.value == null
         ? ""
-        : String(row.parentOrganicTraffic);
+        : String(row.parentOrganicTraffic.value);
     case "parentOrganicKeywords":
-      return row.parentOrganicKeywords == null
+      return row.parentOrganicKeywords?.value == null
         ? ""
-        : String(row.parentOrganicKeywords);
+        : String(row.parentOrganicKeywords.value);
     case "parentReferringDomains":
-      return row.parentReferringDomains == null
+      return row.parentReferringDomains?.value == null
         ? ""
-        : String(row.parentReferringDomains);
+        : String(row.parentReferringDomains.value);
     case "shareOfLocalVoice":
       return row.shareOfLocalVoice == null ? "" : String(row.shareOfLocalVoice);
     case "averageGridRank":
@@ -954,9 +1049,23 @@ function renderCell(
       ) : (
         <span className="text-neutral-400">—</span>
       );
+    case "searchScope":
+      return (
+        <div className="space-y-1">
+          <SearchScopeBadge scope={row.searchScope} />
+          {row.mixedWithoutLocationWarning ? (
+            <div className="text-[10px] text-amber-800">
+              Mixed domain — no Location metrics
+            </div>
+          ) : null}
+        </div>
+      );
     case "analysisTarget":
       return (
-        <span className="max-w-[12rem] truncate text-xs" title={row.analysisTarget ?? ""}>
+        <span
+          className="max-w-[14rem] truncate text-xs"
+          title={row.analysisTarget ?? ""}
+        >
           {row.analysisTarget ?? "—"}
         </span>
       );
@@ -964,12 +1073,26 @@ function renderCell(
       return <span className="text-xs">{row.analysisMode ?? "—"}</span>;
     case "reviewCount":
       return (
-        <PercentileCell
-          value={row.reviewCount}
-          percentile={row.percentiles.reviewCount}
-          display={formatInt(row.reviewCount)}
-          compact={compact}
-        />
+        <div className={compact ? "space-y-0.5" : "space-y-1"}>
+          <div className="tabular-nums text-vezzt-950">
+            {formatInt(row.reviewCount)}
+          </div>
+          {row.percentiles.reviewCount != null ? (
+            <>
+              <div className="h-1.5 w-full overflow-hidden rounded bg-neutral-100">
+                <div
+                  className="h-full rounded bg-vezzt-600/80"
+                  style={{
+                    width: `${Math.max(4, Math.min(100, row.percentiles.reviewCount))}%`,
+                  }}
+                />
+              </div>
+              <div className="text-[10px] text-neutral-500">
+                {formatOrdinal(row.percentiles.reviewCount)}
+              </div>
+            </>
+          ) : null}
+        </div>
       );
     case "rating":
       return (
@@ -997,77 +1120,117 @@ function renderCell(
           {formatFloat(row.estimatedMonthlyReviewVelocity, 2)}
         </span>
       );
-    case "localOrganicTraffic":
+    case "organicTraffic":
       return (
-        <PercentileCell
-          value={row.localOrganicTraffic}
-          percentile={row.percentiles.localOrganicTraffic}
-          display={
-            formatInt(row.localOrganicTraffic) +
-            (row.localAhrefsFromParent ? " *" : "")
-          }
+        <ScopedValueCell
+          metric={row.organicTraffic}
+          display={formatInt(row.organicTraffic.value)}
+          percentile={row.percentiles.organicTraffic}
+          compact={compact}
+          warnMixed={row.mixedWithoutLocationWarning}
+        />
+      );
+    case "organicKeywords":
+      return (
+        <ScopedValueCell
+          metric={row.organicKeywords}
+          display={formatInt(row.organicKeywords.value)}
+          compact={compact}
+          warnMixed={row.mixedWithoutLocationWarning}
+        />
+      );
+    case "keywordsTop3":
+      return (
+        <ScopedValueCell
+          metric={row.keywordsTop3}
+          display={formatInt(row.keywordsTop3.value)}
           compact={compact}
         />
       );
-    case "localOrganicKeywords":
+    case "referringDomains":
       return (
-        <span className="tabular-nums">
-          {formatInt(row.localOrganicKeywords)}
-        </span>
+        <ScopedValueCell
+          metric={row.referringDomains}
+          display={formatInt(row.referringDomains.value)}
+          percentile={row.percentiles.referringDomains}
+          compact={compact}
+          warnMixed={row.mixedWithoutLocationWarning}
+        />
       );
-    case "localKeywordsTop3":
+    case "backlinks":
       return (
-        <span className="tabular-nums">{formatInt(row.localKeywordsTop3)}</span>
-      );
-    case "localReferringDomains":
-      return (
-        <PercentileCell
-          value={row.localReferringDomains}
-          percentile={row.percentiles.localReferringDomains}
-          display={formatInt(row.localReferringDomains)}
+        <ScopedValueCell
+          metric={row.backlinks}
+          display={formatInt(row.backlinks.value)}
           compact={compact}
         />
       );
-    case "localBacklinks":
+    case "trafficValue":
       return (
-        <span className="tabular-nums">{formatInt(row.localBacklinks)}</span>
+        <ScopedValueCell
+          metric={row.trafficValue}
+          display={formatInt(row.trafficValue.value)}
+          compact={compact}
+        />
       );
-    case "localTrafficValue":
+    case "domainRating":
       return (
-        <span className="tabular-nums">{formatInt(row.localTrafficValue)}</span>
-      );
-    case "parentDomainRating":
-      return (
-        <span className="tabular-nums">
-          {formatFloat(row.parentDomainRating, 1)}
-        </span>
+        <ScopedValueCell
+          metric={row.domainRating}
+          display={formatFloat(row.domainRating.value, 1)}
+          compact={compact}
+        />
       );
     case "parentOrganicTraffic":
-      return (
-        <span className="tabular-nums">
-          {formatInt(row.parentOrganicTraffic)}
-        </span>
+      return row.parentOrganicTraffic ? (
+        <ScopedValueCell
+          metric={row.parentOrganicTraffic}
+          display={formatInt(row.parentOrganicTraffic.value)}
+          compact={compact}
+        />
+      ) : (
+        <span className="text-neutral-400">—</span>
       );
     case "parentOrganicKeywords":
-      return (
-        <span className="tabular-nums">
-          {formatInt(row.parentOrganicKeywords)}
-        </span>
+      return row.parentOrganicKeywords ? (
+        <ScopedValueCell
+          metric={row.parentOrganicKeywords}
+          display={formatInt(row.parentOrganicKeywords.value)}
+          compact={compact}
+        />
+      ) : (
+        <span className="text-neutral-400">—</span>
       );
     case "parentReferringDomains":
-      return (
-        <span className="tabular-nums">
-          {formatInt(row.parentReferringDomains)}
-        </span>
+      return row.parentReferringDomains ? (
+        <ScopedValueCell
+          metric={row.parentReferringDomains}
+          display={formatInt(row.parentReferringDomains.value)}
+          compact={compact}
+        />
+      ) : (
+        <span className="text-neutral-400">—</span>
       );
     case "shareOfLocalVoice":
       return (
-        <PercentileCell
-          value={row.shareOfLocalVoice}
-          percentile={row.percentiles.shareOfLocalVoice}
-          display={formatPct(row.shareOfLocalVoice)}
-          compact={compact}
-        />
+        <div className={compact ? "space-y-0.5" : "space-y-1"}>
+          <div className="tabular-nums">{formatPct(row.shareOfLocalVoice)}</div>
+          {row.percentiles.shareOfLocalVoice != null ? (
+            <>
+              <div className="h-1.5 w-full overflow-hidden rounded bg-neutral-100">
+                <div
+                  className="h-full rounded bg-vezzt-600/80"
+                  style={{
+                    width: `${Math.max(4, Math.min(100, row.percentiles.shareOfLocalVoice))}%`,
+                  }}
+                />
+              </div>
+              <div className="text-[10px] text-neutral-500">
+                {formatOrdinal(row.percentiles.shareOfLocalVoice)}
+              </div>
+            </>
+          ) : null}
+        </div>
       );
     case "averageGridRank":
       return (
@@ -1086,7 +1249,7 @@ function renderCell(
         <span className="tabular-nums">
           {row.top3Coverage == null
             ? "—"
-            : `${row.foundInTop3Count}/${row.totalGridPoints} (${formatPct(row.top3Coverage)})`}
+            : `${row.foundInTop3Count}/${row.totalGridPoints}`}
         </span>
       );
     case "top10Coverage":
@@ -1094,7 +1257,7 @@ function renderCell(
         <span className="tabular-nums">
           {row.top10Coverage == null
             ? "—"
-            : `${row.foundInTop10Count}/${row.totalGridPoints} (${formatPct(row.top10Coverage)})`}
+            : `${row.foundInTop10Count}/${row.totalGridPoints}`}
         </span>
       );
     case "geogridScanDate":
@@ -1146,7 +1309,7 @@ function renderCell(
     case "vestimate":
     case "confidenceScore":
       return (
-        <span className="text-neutral-400 italic">{FUTURE_METRIC_LABEL}</span>
+        <span className="italic text-neutral-400">{FUTURE_METRIC_LABEL}</span>
       );
     default:
       return null;

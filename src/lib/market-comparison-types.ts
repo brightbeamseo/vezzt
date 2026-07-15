@@ -1,5 +1,6 @@
 import type { CompanyScale, OwnershipModel } from "@/lib/companies";
 import type { QualificationStatus } from "@/lib/qualification";
+import type { SearchScope } from "@/lib/search-scope";
 
 export type MarketComparisonFilters = {
   marketId: string;
@@ -9,6 +10,7 @@ export type MarketComparisonFilters = {
   companyScale: CompanyScale | "all";
   ownershipModel: OwnershipModel | "all";
   qualificationStatus: QualificationStatus | "all";
+  searchScope: SearchScope | "all";
   hasAhrefs: boolean;
   hasGeogrid: boolean;
   hasMultipleReviewSnapshots: boolean;
@@ -23,6 +25,7 @@ export const DEFAULT_MARKET_COMPARISON_FILTERS: MarketComparisonFilters = {
   companyScale: "all",
   ownershipModel: "all",
   qualificationStatus: "qualified",
+  searchScope: "all",
   hasAhrefs: false,
   hasGeogrid: false,
   hasMultipleReviewSnapshots: false,
@@ -36,6 +39,7 @@ export type MarketComparisonColumnId =
   | "companyScale"
   | "ownershipModel"
   | "website"
+  | "searchScope"
   | "analysisTarget"
   | "analysisMode"
   | "reviewCount"
@@ -44,13 +48,13 @@ export type MarketComparisonColumnId =
   | "reviewsGainedSincePrior"
   | "weeklyReviewVelocity"
   | "estimatedMonthlyReviewVelocity"
-  | "localOrganicTraffic"
-  | "localOrganicKeywords"
-  | "localKeywordsTop3"
-  | "localReferringDomains"
-  | "localBacklinks"
-  | "localTrafficValue"
-  | "parentDomainRating"
+  | "organicTraffic"
+  | "organicKeywords"
+  | "keywordsTop3"
+  | "referringDomains"
+  | "backlinks"
+  | "trafficValue"
+  | "domainRating"
   | "parentOrganicTraffic"
   | "parentOrganicKeywords"
   | "parentReferringDomains"
@@ -76,23 +80,23 @@ export type MarketComparisonColumnDef = {
   group: string;
   numeric: boolean;
   defaultVisible: boolean;
-  /** Show percentile bar for this field when present. */
   percentileOf?:
     | "reviewCount"
-    | "localOrganicTraffic"
+    | "organicTraffic"
     | "shareOfLocalVoice"
-    | "localReferringDomains";
+    | "referringDomains";
 };
 
 export const MARKET_COMPARISON_COLUMNS: MarketComparisonColumnDef[] = [
   { id: "businessName", label: "Business", group: "Identity", numeric: false, defaultVisible: true },
   { id: "city", label: "City", group: "Identity", numeric: false, defaultVisible: true },
   { id: "companyName", label: "Company", group: "Identity", numeric: false, defaultVisible: false },
-  { id: "companyScale", label: "Company scale", group: "Identity", numeric: false, defaultVisible: false },
-  { id: "ownershipModel", label: "Ownership", group: "Identity", numeric: false, defaultVisible: false },
+  { id: "companyScale", label: "Company scale", group: "Identity", numeric: false, defaultVisible: true },
+  { id: "ownershipModel", label: "Ownership model", group: "Identity", numeric: false, defaultVisible: true },
   { id: "website", label: "Website", group: "Identity", numeric: false, defaultVisible: false },
-  { id: "analysisTarget", label: "Analysis target", group: "Identity", numeric: false, defaultVisible: false },
-  { id: "analysisMode", label: "Analysis mode", group: "Identity", numeric: false, defaultVisible: false },
+  { id: "searchScope", label: "Search Scope", group: "Ahrefs", numeric: false, defaultVisible: true },
+  { id: "analysisTarget", label: "Analysis Target", group: "Ahrefs", numeric: false, defaultVisible: true },
+  { id: "analysisMode", label: "Analysis mode", group: "Ahrefs", numeric: false, defaultVisible: false },
   {
     id: "reviewCount",
     label: "Reviews",
@@ -115,7 +119,7 @@ export const MARKET_COMPARISON_COLUMNS: MarketComparisonColumnDef[] = [
     label: "Review velocity",
     group: "Google",
     numeric: true,
-    defaultVisible: true,
+    defaultVisible: false,
   },
   {
     id: "estimatedMonthlyReviewVelocity",
@@ -125,73 +129,73 @@ export const MARKET_COMPARISON_COLUMNS: MarketComparisonColumnDef[] = [
     defaultVisible: false,
   },
   {
-    id: "localOrganicTraffic",
-    label: "Organic traffic",
-    group: "Ahrefs local",
+    id: "organicTraffic",
+    label: "Organic Traffic",
+    group: "Ahrefs",
     numeric: true,
     defaultVisible: true,
-    percentileOf: "localOrganicTraffic",
+    percentileOf: "organicTraffic",
   },
   {
-    id: "localOrganicKeywords",
-    label: "Organic keywords",
-    group: "Ahrefs local",
+    id: "organicKeywords",
+    label: "Organic Keywords",
+    group: "Ahrefs",
     numeric: true,
     defaultVisible: true,
   },
   {
-    id: "localKeywordsTop3",
+    id: "keywordsTop3",
     label: "Keywords 1–3",
-    group: "Ahrefs local",
+    group: "Ahrefs",
     numeric: true,
     defaultVisible: false,
   },
   {
-    id: "localReferringDomains",
-    label: "Referring domains",
-    group: "Ahrefs local",
+    id: "domainRating",
+    label: "Domain Rating",
+    group: "Ahrefs",
     numeric: true,
     defaultVisible: true,
-    percentileOf: "localReferringDomains",
   },
   {
-    id: "localBacklinks",
+    id: "referringDomains",
+    label: "Referring Domains",
+    group: "Ahrefs",
+    numeric: true,
+    defaultVisible: true,
+    percentileOf: "referringDomains",
+  },
+  {
+    id: "backlinks",
     label: "Backlinks",
-    group: "Ahrefs local",
+    group: "Ahrefs",
     numeric: true,
     defaultVisible: false,
   },
   {
-    id: "localTrafficValue",
+    id: "trafficValue",
     label: "Traffic value",
-    group: "Ahrefs local",
+    group: "Ahrefs",
     numeric: true,
     defaultVisible: false,
-  },
-  {
-    id: "parentDomainRating",
-    label: "Parent DR",
-    group: "Ahrefs parent",
-    numeric: true,
-    defaultVisible: true,
   },
   {
     id: "parentOrganicTraffic",
-    label: "Parent organic traffic",
+    label: "Parent/Company organic traffic",
     group: "Ahrefs parent",
     numeric: true,
     defaultVisible: false,
   },
   {
     id: "parentOrganicKeywords",
-    label: "Parent organic keywords",
+    label: "Parent/Company organic keywords",
     group: "Ahrefs parent",
     numeric: true,
     defaultVisible: false,
   },
   {
     id: "parentReferringDomains",
-    label: "Parent referring domains",
+    label: "Parent/Company referring domains",
     group: "Ahrefs parent",
     numeric: true,
     defaultVisible: false,
@@ -206,7 +210,7 @@ export const MARKET_COMPARISON_COLUMNS: MarketComparisonColumnDef[] = [
   },
   {
     id: "averageGridRank",
-    label: "AGR",
+    label: "Avg Rank",
     group: "GeoGrid",
     numeric: true,
     defaultVisible: true,
@@ -220,14 +224,14 @@ export const MARKET_COMPARISON_COLUMNS: MarketComparisonColumnDef[] = [
   },
   {
     id: "top3Coverage",
-    label: "Top-3 coverage",
+    label: "Top 3",
     group: "GeoGrid",
     numeric: true,
     defaultVisible: true,
   },
   {
     id: "top10Coverage",
-    label: "Top-10 coverage",
+    label: "Top 10",
     group: "GeoGrid",
     numeric: true,
     defaultVisible: false,
@@ -241,7 +245,7 @@ export const MARKET_COMPARISON_COLUMNS: MarketComparisonColumnDef[] = [
   },
   {
     id: "dataCompleteness",
-    label: "Data completeness",
+    label: "Data Completeness",
     group: "Quality",
     numeric: true,
     defaultVisible: true,
@@ -309,6 +313,11 @@ export const DEFAULT_VISIBLE_COLUMNS: MarketComparisonColumnId[] =
 
 export const FUTURE_METRIC_LABEL = "Not calculated";
 
+export type ScopedMetric = {
+  value: number | null;
+  searchScope: SearchScope;
+};
+
 export type MarketComparisonRow = {
   businessId: string;
   businessName: string;
@@ -321,8 +330,11 @@ export type MarketComparisonRow = {
   marketId: string | null;
   qualificationStatus: string;
   isQualified: boolean;
+  /** Preferred Ahrefs analysis target shown in primary columns. */
   analysisTarget: string | null;
   analysisMode: string | null;
+  /** Overall preferred search scope for the primary traffic/keywords target. */
+  searchScope: SearchScope;
   companyId: string | null;
   companyName: string | null;
   companyScale: string | null;
@@ -337,20 +349,22 @@ export type MarketComparisonRow = {
   weeklyReviewVelocity: number | null;
   estimatedMonthlyReviewVelocity: number | null;
   reviewSnapshotCount: number;
-  localOrganicTraffic: number | null;
-  localOrganicKeywords: number | null;
-  localKeywordsTop3: number | null;
-  localReferringDomains: number | null;
-  localBacklinks: number | null;
-  localTrafficValue: number | null;
-  localAnalysisTarget: string | null;
-  parentDomainRating: number | null;
-  parentOrganicTraffic: number | null;
-  parentOrganicKeywords: number | null;
-  parentReferringDomains: number | null;
-  parentDomain: string | null;
+  organicTraffic: ScopedMetric;
+  organicKeywords: ScopedMetric;
+  keywordsTop3: ScopedMetric;
+  referringDomains: ScopedMetric;
+  backlinks: ScopedMetric;
+  trafficValue: ScopedMetric;
+  domainRating: ScopedMetric;
+  /** True when primary traffic is Mixed with no Location snapshot. */
+  mixedWithoutLocationWarning: boolean;
+  hasLocationSeo: boolean;
+  parentOrganicTraffic: ScopedMetric | null;
+  parentOrganicKeywords: ScopedMetric | null;
+  parentReferringDomains: ScopedMetric | null;
+  parentSearchScope: SearchScope | null;
   parentAnalysisTarget: string | null;
-  localAhrefsFromParent: boolean;
+  parentDomain: string | null;
   shareOfLocalVoice: number | null;
   averageGridRank: number | null;
   averageTotalGridRank: number | null;
@@ -369,9 +383,9 @@ export type MarketComparisonRow = {
   hasMultipleReviewSnapshots: boolean;
   percentiles: {
     reviewCount: number | null;
-    localOrganicTraffic: number | null;
+    organicTraffic: number | null;
     shareOfLocalVoice: number | null;
-    localReferringDomains: number | null;
+    referringDomains: number | null;
   };
   ahrefsUrl: string | null;
   geogridUrl: string | null;
