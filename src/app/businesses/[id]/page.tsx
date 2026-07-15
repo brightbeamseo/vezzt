@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { getDashboardBusinessById } from "@/lib/dashboard-queries";
-import { formatNullable, formatGridRank, formatSeoMetric } from "@/lib/format";
+import { formatNullable, formatGridRank, formatSeoMetric, formatCurrency } from "@/lib/format";
 import { ReviewCountChart } from "@/components/dashboard/review-count-chart";
 import { MapRankGrid } from "@/components/dashboard/map-rank-grid";
 import { SCORE_MODEL_STATUS } from "@/lib/dashboard-types";
@@ -852,6 +852,102 @@ export default async function BusinessDetailPage({
               </tbody>
             </table>
           </div>
+        </section>
+
+        <section className="rounded-xl border border-neutral-200 bg-white p-5 shadow-sm">
+          <h2 className="text-sm font-semibold text-vezzt-950">
+            Market Area Snapshot
+          </h2>
+          <p className="mt-1 text-xs text-neutral-500">
+            US Census ACS ZIP Code Tabulation Area (ZCTA) demographics for this
+            business postal code. Raw reference data only — not used for ranking.
+          </p>
+          {!business.zipStats ? (
+            <p className="mt-4 text-sm text-neutral-500">
+              No Census ZCTA data linked for ZIP{" "}
+              {business.postalCode?.trim() || "—"}.
+            </p>
+          ) : (
+            <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-3">
+              <Metric label="ZIP Code" value={business.zipStats.zipCode} />
+              <Metric
+                label="ZIP Population"
+                value={
+                  business.zipStats.population == null
+                    ? "—"
+                    : business.zipStats.population.toLocaleString("en-US")
+                }
+              />
+              <Metric
+                label="Households"
+                value={
+                  business.zipStats.households == null
+                    ? "—"
+                    : business.zipStats.households.toLocaleString("en-US")
+                }
+              />
+              <Metric
+                label="Housing Units"
+                value={
+                  business.zipStats.housingUnits == null
+                    ? "—"
+                    : business.zipStats.housingUnits.toLocaleString("en-US")
+                }
+              />
+              <Metric
+                label="Owner-Occupied Housing Units"
+                value={
+                  business.zipStats.ownerOccupiedHousingUnits == null
+                    ? "—"
+                    : business.zipStats.ownerOccupiedHousingUnits.toLocaleString(
+                        "en-US",
+                      )
+                }
+              />
+              <Metric
+                label="Owner-Occupied Rate"
+                value={
+                  business.zipStats.ownerOccupiedRate == null
+                    ? "—"
+                    : `${business.zipStats.ownerOccupiedRate.toFixed(1)}%`
+                }
+              />
+              <Metric
+                label="Median Household Income"
+                value={
+                  business.zipStats.medianHouseholdIncome == null
+                    ? "—"
+                    : formatCurrency(business.zipStats.medianHouseholdIncome)
+                }
+              />
+              <Metric
+                label="Median Home Value"
+                value={
+                  business.zipStats.medianHomeValue == null
+                    ? "—"
+                    : formatCurrency(business.zipStats.medianHomeValue)
+                }
+              />
+              <Metric
+                label="Median Year Structure Built"
+                value={
+                  business.zipStats.medianYearStructureBuilt == null
+                    ? "—"
+                    : String(
+                        Math.round(business.zipStats.medianYearStructureBuilt),
+                      )
+                }
+              />
+              <Metric
+                label="Census dataset year"
+                value={
+                  business.zipStats.datasetYear == null
+                    ? "—"
+                    : String(business.zipStats.datasetYear)
+                }
+              />
+            </div>
+          )}
         </section>
 
         <section className="rounded-xl border border-dashed border-neutral-400 bg-neutral-50 p-5">

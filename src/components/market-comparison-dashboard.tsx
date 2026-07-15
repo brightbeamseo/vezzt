@@ -950,6 +950,26 @@ function cellExport(
       return row.geogridScanDate ?? "";
     case "dataCompleteness":
       return String(row.dataCompleteness);
+    case "zipPopulation":
+      return row.zipPopulation == null ? "" : String(row.zipPopulation);
+    case "zipHouseholds":
+      return row.zipHouseholds == null ? "" : String(row.zipHouseholds);
+    case "zipOwnerOccupiedHousingUnits":
+      return row.zipOwnerOccupiedHousingUnits == null
+        ? ""
+        : String(row.zipOwnerOccupiedHousingUnits);
+    case "zipOwnerOccupiedRate":
+      return row.zipOwnerOccupiedRate == null
+        ? ""
+        : String(row.zipOwnerOccupiedRate);
+    case "zipMedianHouseholdIncome":
+      return row.zipMedianHouseholdIncome == null
+        ? ""
+        : String(row.zipMedianHouseholdIncome);
+    case "zipMedianHomeValue":
+      return row.zipMedianHomeValue == null
+        ? ""
+        : String(row.zipMedianHomeValue);
     case "missingFields":
       return row.missingFields.join("; ");
     case "latestDataRefresh":
@@ -1280,6 +1300,44 @@ function renderCell(
             </div>
           ) : null}
         </div>
+      );
+    case "zipPopulation":
+      return (
+        <span className="tabular-nums">{formatInt(row.zipPopulation)}</span>
+      );
+    case "zipHouseholds":
+      return (
+        <span className="tabular-nums">{formatInt(row.zipHouseholds)}</span>
+      );
+    case "zipOwnerOccupiedHousingUnits":
+      return (
+        <span className="tabular-nums">
+          {formatInt(row.zipOwnerOccupiedHousingUnits)}
+        </span>
+      );
+    case "zipOwnerOccupiedRate":
+      return (
+        <span className="tabular-nums">
+          {row.zipOwnerOccupiedRate == null
+            ? "—"
+            : `${row.zipOwnerOccupiedRate.toFixed(1)}%`}
+        </span>
+      );
+    case "zipMedianHouseholdIncome":
+      return (
+        <span className="tabular-nums">
+          {row.zipMedianHouseholdIncome == null
+            ? "—"
+            : `$${Math.round(row.zipMedianHouseholdIncome).toLocaleString("en-US")}`}
+        </span>
+      );
+    case "zipMedianHomeValue":
+      return (
+        <span className="tabular-nums">
+          {row.zipMedianHomeValue == null
+            ? "—"
+            : `$${Math.round(row.zipMedianHomeValue).toLocaleString("en-US")}`}
+        </span>
       );
     case "missingFields":
       return (

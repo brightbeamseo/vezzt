@@ -161,6 +161,20 @@ export type DashboardBusinessDetail = DashboardBusiness & {
     city: string | null;
     websiteUrl: string | null;
   }[];
+  /** Joined from zip_code_stats via normalized postal_code — null when no match. */
+  zipStats: {
+    zipCode: string;
+    population: number | null;
+    households: number | null;
+    housingUnits: number | null;
+    ownerOccupiedHousingUnits: number | null;
+    ownerOccupiedRate: number | null;
+    medianHouseholdIncome: number | null;
+    medianHomeValue: number | null;
+    medianYearStructureBuilt: number | null;
+    datasetYear: number | null;
+    dataSource: string | null;
+  } | null;
 };
 
 export type DashboardSummary = {

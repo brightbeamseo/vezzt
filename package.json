@@ -42,6 +42,8 @@
     "db:apply-current-signals": "tsx scripts/apply-sql.ts supabase/migrations/20250714240000_business_current_signals.sql",
     "db:apply-search-scope": "tsx scripts/apply-sql.ts supabase/migrations/20250714250000_seo_search_scope.sql",
     "reclassify:seo-search-scope": "tsx scripts/reclassify-seo-search-scope.ts",
+    "db:apply-zip-stats": "tsx scripts/apply-sql.ts supabase/migrations/20250714260000_zip_code_stats.sql",
+    "enrich:census-zips": "tsx scripts/enrich-census-zips.ts",
     "verify:supabase": "tsx scripts/verify-supabase.ts"
   },
   "dependencies": {

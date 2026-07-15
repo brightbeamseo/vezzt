@@ -103,6 +103,17 @@ type SignalRow = {
   found_in_top_10_count: number | null;
   total_grid_points: number | null;
   latest_data_refresh_at: string | null;
+  postal_code: string | null;
+  zip_code_normalized: string | null;
+  zip_population: number | null;
+  zip_households: number | null;
+  zip_housing_units: number | null;
+  zip_owner_occupied_housing_units: number | null;
+  zip_owner_occupied_rate: number | string | null;
+  zip_median_household_income: number | string | null;
+  zip_median_home_value: number | string | null;
+  zip_median_year_structure_built: number | string | null;
+  zip_dataset_year: number | null;
 };
 
 /**
@@ -293,6 +304,17 @@ function mapSignalRow(raw: SignalRow): Omit<MarketComparisonRow, "percentiles"> 
     dataCompleteness: Math.round((presentCount / fields.length) * 100),
     missingFields,
     latestDataRefresh: raw.latest_data_refresh_at,
+    postalCode: raw.postal_code,
+    zipCodeNormalized: raw.zip_code_normalized,
+    zipPopulation: raw.zip_population,
+    zipHouseholds: raw.zip_households,
+    zipHousingUnits: raw.zip_housing_units,
+    zipOwnerOccupiedHousingUnits: raw.zip_owner_occupied_housing_units,
+    zipOwnerOccupiedRate: toNumber(raw.zip_owner_occupied_rate),
+    zipMedianHouseholdIncome: toNumber(raw.zip_median_household_income),
+    zipMedianHomeValue: toNumber(raw.zip_median_home_value),
+    zipMedianYearStructureBuilt: toNumber(raw.zip_median_year_structure_built),
+    zipDatasetYear: raw.zip_dataset_year,
     hasAhrefs,
     hasGeogrid,
     hasMultipleReviewSnapshots: reviewSnapshotCount >= 2,

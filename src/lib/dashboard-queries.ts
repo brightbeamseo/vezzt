@@ -1,6 +1,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { cookies } from "next/headers";
 import type { QualificationStatus } from "@/lib/qualification";
+import { normalizeZipCode } from "@/lib/census";
 import type {
   DashboardBusiness,
   DashboardBusinessDetail,
@@ -529,6 +530,53 @@ export async function getDashboardBusinessById(
     }));
   }
 
+  const zipCode = normalizeZipCode(base.postalCode);
+  let zipStats: DashboardBusinessDetail["zipStats"] = null;
+  if (zipCode) {
+    const { data: zipRow, error: zipError } = await supabase
+      .from("zip_code_stats")
+      .select(
+        `
+        zip_code,
+        population,
+        households,
+        housing_units,
+        owner_occupied_housing_units,
+        owner_occupied_rate,
+        median_household_income,
+        median_home_value,
+        median_year_structure_built,
+        dataset_year,
+        data_source
+      `,
+      )
+      .eq("zip_code", zipCode)
+      .maybeSingle();
+
+    if (zipError) {
+      throw new Error(`Failed to load zip_code_stats: ${zipError.message}`);
+    }
+
+    if (zipRow) {
+      zipStats = {
+        zipCode: zipRow.zip_code as string,
+        population: (zipRow.population as number | null) ?? null,
+        households: (zipRow.households as number | null) ?? null,
+        housingUnits: (zipRow.housing_units as number | null) ?? null,
+        ownerOccupiedHousingUnits:
+          (zipRow.owner_occupied_housing_units as number | null) ?? null,
+        ownerOccupiedRate: toNumber(zipRow.owner_occupied_rate),
+        medianHouseholdIncome: toNumber(zipRow.median_household_income),
+        medianHomeValue: toNumber(zipRow.median_home_value),
+        medianYearStructureBuilt: toNumber(
+          zipRow.median_year_structure_built,
+        ),
+        datasetYear: (zipRow.dataset_year as number | null) ?? null,
+        dataSource: (zipRow.data_source as string | null) ?? null,
+      };
+    }
+  }
+
   return {
     ...base,
     snapshots,
@@ -598,6 +646,7 @@ export async function getDashboardBusinessById(
     analysisTarget: row.analysis_target ?? null,
     analysisMode: row.analysis_mode ?? null,
     siblingLocations,
+    zipStats,
   };
 }
 

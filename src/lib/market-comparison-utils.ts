@@ -93,6 +93,18 @@ export function getNumericSortValue(
       return row.top10Coverage;
     case "dataCompleteness":
       return row.dataCompleteness;
+    case "zipPopulation":
+      return row.zipPopulation;
+    case "zipHouseholds":
+      return row.zipHouseholds;
+    case "zipOwnerOccupiedHousingUnits":
+      return row.zipOwnerOccupiedHousingUnits;
+    case "zipOwnerOccupiedRate":
+      return row.zipOwnerOccupiedRate;
+    case "zipMedianHouseholdIncome":
+      return row.zipMedianHouseholdIncome;
+    case "zipMedianHomeValue":
+      return row.zipMedianHomeValue;
     default:
       return null;
   }

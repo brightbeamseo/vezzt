@@ -68,6 +68,12 @@ export type MarketComparisonColumnId =
   | "missingFields"
   | "latestDataRefresh"
   | "manualReviewFlag"
+  | "zipPopulation"
+  | "zipHouseholds"
+  | "zipOwnerOccupiedHousingUnits"
+  | "zipOwnerOccupiedRate"
+  | "zipMedianHouseholdIncome"
+  | "zipMedianHomeValue"
   | "businessStrength"
   | "growthScore"
   | "marketStrength"
@@ -251,6 +257,48 @@ export const MARKET_COMPARISON_COLUMNS: MarketComparisonColumnDef[] = [
     defaultVisible: true,
   },
   {
+    id: "zipPopulation",
+    label: "ZIP Population",
+    group: "Census ZIP",
+    numeric: true,
+    defaultVisible: true,
+  },
+  {
+    id: "zipHouseholds",
+    label: "Households",
+    group: "Census ZIP",
+    numeric: true,
+    defaultVisible: true,
+  },
+  {
+    id: "zipOwnerOccupiedHousingUnits",
+    label: "Owner-Occupied Housing Units",
+    group: "Census ZIP",
+    numeric: true,
+    defaultVisible: true,
+  },
+  {
+    id: "zipOwnerOccupiedRate",
+    label: "Owner-Occupied Rate",
+    group: "Census ZIP",
+    numeric: true,
+    defaultVisible: true,
+  },
+  {
+    id: "zipMedianHouseholdIncome",
+    label: "Median Household Income",
+    group: "Census ZIP",
+    numeric: true,
+    defaultVisible: true,
+  },
+  {
+    id: "zipMedianHomeValue",
+    label: "Median Home Value",
+    group: "Census ZIP",
+    numeric: true,
+    defaultVisible: true,
+  },
+  {
     id: "missingFields",
     label: "Missing fields",
     group: "Quality",
@@ -378,6 +426,17 @@ export type MarketComparisonRow = {
   dataCompleteness: number;
   missingFields: string[];
   latestDataRefresh: string | null;
+  postalCode: string | null;
+  zipCodeNormalized: string | null;
+  zipPopulation: number | null;
+  zipHouseholds: number | null;
+  zipHousingUnits: number | null;
+  zipOwnerOccupiedHousingUnits: number | null;
+  zipOwnerOccupiedRate: number | null;
+  zipMedianHouseholdIncome: number | null;
+  zipMedianHomeValue: number | null;
+  zipMedianYearStructureBuilt: number | null;
+  zipDatasetYear: number | null;
   hasAhrefs: boolean;
   hasGeogrid: boolean;
   hasMultipleReviewSnapshots: boolean;
