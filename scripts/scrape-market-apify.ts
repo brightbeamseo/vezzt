@@ -34,6 +34,7 @@ function parseArgs(argv: string[]) {
   let query = "roofing contractor";
   let maxPerSearch = 20;
   let concurrency = 2;
+  let cities: string[] | null = null;
 
   for (const arg of argv) {
     if (arg.startsWith("--market=")) marketId = arg.split("=")[1];
@@ -51,6 +52,14 @@ function parseArgs(argv: string[]) {
     if (arg.startsWith("--concurrency=")) {
       concurrency = Number(arg.split("=")[1]);
     }
+    if (arg.startsWith("--cities=")) {
+      cities = arg
+        .slice("--cities=".length)
+        .split(",")
+        .map((c) => c.trim())
+        .filter(Boolean);
+      mode = "single";
+    }
   }
 
   if (!Number.isFinite(maxPerSearch) || maxPerSearch < 1) {
@@ -66,13 +75,32 @@ function parseArgs(argv: string[]) {
     query,
     maxPerSearch,
     concurrency,
+    cities,
   };
 }
 
 function apifyToken(): string {
+  // Prefer .env.local file tokens locally (avoids secret-injection overlays).
+  try {
+    const { readFileSync } = require("node:fs") as typeof import("node:fs");
+    const raw = Object.fromEntries(
+      readFileSync(".env.local", "utf8")
+        .split("\n")
+        .filter((l) => l.includes("=") && !l.startsWith("#"))
+        .map((l) => {
+          const i = l.indexOf("=");
+          return [l.slice(0, i).trim(), l.slice(i + 1).trim()];
+        }),
+    ) as Record<string, string>;
+    const fileToken = raw.APIFY_TOKEN || raw.APIFY_DEFAULT_API_TOKEN;
+    if (fileToken) return fileToken;
+  } catch {
+    // fall through
+  }
+
   const token =
-    process.env.APIFY_DEFAULT_API_TOKEN || process.env.APIFY_TOKEN || "";
-  if (!token) throw new Error("Missing APIFY_DEFAULT_API_TOKEN");
+    process.env.APIFY_TOKEN || process.env.APIFY_DEFAULT_API_TOKEN || "";
+  if (!token) throw new Error("Missing APIFY_TOKEN or APIFY_DEFAULT_API_TOKEN");
   return token;
 }
 
@@ -100,7 +128,7 @@ async function startRun(
 async function waitForRun(
   token: string,
   runId: string,
-  timeoutMs = 15 * 60 * 1000,
+  timeoutMs = 45 * 60 * 1000,
 ): Promise<{
   status: string;
   defaultDatasetId: string;
@@ -229,12 +257,12 @@ async function mapPool<T, R>(
 }
 
 async function main() {
-  const { market, mode, query, maxPerSearch, concurrency } = parseArgs(
+  const { market, mode, query, maxPerSearch, concurrency, cities } = parseArgs(
     process.argv.slice(2),
   );
   const token = apifyToken();
 
-  const jobs =
+  let jobs =
     mode === "discovery"
       ? marketDiscoveryJobs(market)
       : marketLocationQueries(market).map((locationQuery) => ({
@@ -242,6 +270,28 @@ async function main() {
           locationQuery,
           searchTerm: query,
         }));
+
+  if (cities && cities.length > 0) {
+    jobs = cities.map((city) => {
+      const canonical =
+        market.cities.find((c) => c.toLowerCase() === city.toLowerCase()) ??
+        city;
+      return {
+        city: canonical,
+        locationQuery: `${canonical}, ${market.state}, USA`,
+        searchTerm: query,
+      };
+    });
+    const unknown = cities.filter(
+      (c) =>
+        !market.cities.some((mc) => mc.toLowerCase() === c.toLowerCase()),
+    );
+    if (unknown.length > 0) {
+      console.warn(
+        `Warning: cities outside market allowlist (still scraping): ${unknown.join(", ")}`,
+      );
+    }
+  }
 
   console.log(
     `Market ${market.id}: ${jobs.length} jobs, mode=${mode}, maxPerSearch=${maxPerSearch}, concurrency=${concurrency}`,
