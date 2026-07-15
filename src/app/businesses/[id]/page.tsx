@@ -659,19 +659,19 @@ export default async function BusinessDetailPage({
                     value={business.seoLocal.analysisMode || "Not available"}
                   />
                   <Metric
-                    label="Local organic traffic"
+                    label="Organic traffic"
                     value={formatSeoMetric(business.seoLocal.organicTraffic, {
                       kind: "integer",
                     })}
                   />
                   <Metric
-                    label="Local organic keywords"
+                    label="Organic keywords"
                     value={formatSeoMetric(business.seoLocal.organicKeywords, {
                       kind: "integer",
                     })}
                   />
                   <Metric
-                    label="Local top-3 keywords"
+                    label="Keywords 1–3"
                     value={formatSeoMetric(
                       business.seoLocal.organicKeywordsTop3,
                       { kind: "integer" },
