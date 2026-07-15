@@ -478,13 +478,17 @@ export async function startMapRankScan(input: {
 
     let marketTimezone: string | null = null;
     if (biz.market_id) {
-      const { rows: marketRows } = await db.query<{ timezone: string }>(
-        `select timezone from public.markets where id = $1`,
+      const { rows: marketRows } = await db.query<{
+        timezone: string | null;
+        market_slug: string | null;
+      }>(
+        `select timezone, market_slug from public.markets where id = $1::uuid`,
         [biz.market_id],
       );
       marketTimezone = marketRows[0]?.timezone ?? null;
-      if (!marketTimezone) {
-        const codeMarket = MARKETS[biz.market_id as keyof typeof MARKETS];
+      if (!marketTimezone && marketRows[0]?.market_slug) {
+        const codeMarket =
+          MARKETS[marketRows[0].market_slug as keyof typeof MARKETS];
         marketTimezone = codeMarket?.timezone ?? null;
       }
     }

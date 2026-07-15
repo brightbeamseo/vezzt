@@ -45,6 +45,8 @@
     "db:apply-zip-stats": "tsx scripts/apply-sql.ts supabase/migrations/20250714260000_zip_code_stats.sql",
     "enrich:census-zips": "tsx scripts/enrich-census-zips.ts",
     "db:apply-map-scan-hours": "tsx scripts/apply-sql.ts supabase/migrations/20250714270000_map_scan_local_hours.sql",
+    "db:apply-markets-census": "tsx scripts/apply-sql.ts supabase/migrations/20260715025823_markets_census_architecture.sql",
+    "enrich:markets": "tsx scripts/enrich-markets.ts",
     "report:map-scan-schedule": "tsx scripts/report-map-scan-schedule.ts",
     "verify:supabase": "tsx scripts/verify-supabase.ts"
   },

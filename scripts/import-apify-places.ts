@@ -11,6 +11,7 @@ import {
   DEFAULT_REVIEW_THRESHOLD,
   qualifyRoofingBusiness,
 } from "../src/lib/qualification";
+import { resolveMarketUuid } from "../src/lib/census/market-enrichment";
 import { getMarket, isInMarket } from "../src/lib/markets";
 import { assignMonitoringTier } from "../src/lib/monitoring";
 
@@ -167,6 +168,7 @@ async function main() {
 
   const seen = new Set<string>();
   const client = await connectClient();
+  const marketUuid = await resolveMarketUuid(client, market.id);
 
   try {
     await client.query("begin");
@@ -301,7 +303,7 @@ async function main() {
             place.location?.lng ?? null,
             place.url ?? null,
             !(place.permanentlyClosed || place.temporarilyClosed),
-            market.id,
+            marketUuid,
           ],
         );
 

@@ -47,7 +47,7 @@ async function main() {
          ) as has_finished_scan
        from public.businesses b
        left join public.markets m on m.id = b.market_id
-       where b.market_id = 'boise-metro'
+       where m.market_slug = 'boise-metro'
           or b.qualification_status = 'qualified'
        order by b.name`,
     );
@@ -58,13 +58,10 @@ async function main() {
     const waiting: unknown[] = [];
 
     for (const row of rows) {
-      const codeTz =
-        row.market_id && MARKETS[row.market_id as keyof typeof MARKETS]
-          ? MARKETS[row.market_id as keyof typeof MARKETS].timezone
-          : null;
       const resolved = resolveMapScanTimezone({
         businessTimezone: row.map_scan_timezone || row.timezone,
-        marketTimezone: row.market_timezone || codeTz,
+        marketTimezone:
+          row.market_timezone || MARKETS["boise-metro"]?.timezone || null,
       });
 
       if (!resolved.timeZone) {
@@ -110,13 +107,10 @@ async function main() {
 
     // Persist current eligibility onto businesses that have a timezone
     for (const row of rows) {
-      const codeTz =
-        row.market_id && MARKETS[row.market_id as keyof typeof MARKETS]
-          ? MARKETS[row.market_id as keyof typeof MARKETS].timezone
-          : null;
       const resolved = resolveMapScanTimezone({
         businessTimezone: row.map_scan_timezone || row.timezone,
-        marketTimezone: row.market_timezone || codeTz,
+        marketTimezone:
+          row.market_timezone || MARKETS["boise-metro"]?.timezone || null,
       });
       if (!resolved.timeZone) {
         await db.query(

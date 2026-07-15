@@ -18,7 +18,10 @@ async function main() {
 
   try {
     const { rows } = await client.query<{ id: string }>(
-      `select id from public.businesses where market_id = $1`,
+      `select b.id
+       from public.businesses b
+       join public.markets m on m.id = b.market_id
+       where m.market_slug = $1`,
       [market.id],
     );
 

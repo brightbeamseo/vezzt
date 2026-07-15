@@ -175,6 +175,30 @@ export type DashboardBusinessDetail = DashboardBusiness & {
     datasetYear: number | null;
     dataSource: string | null;
   } | null;
+  /**
+   * Market-level geography (FK → markets). Census fields may be null until
+   * enrich:markets runs with CENSUS_API_KEY.
+   */
+  market: {
+    id: string;
+    marketName: string;
+    marketSlug: string;
+    marketType: string | null;
+    timezone: string | null;
+    population: number | null;
+    households: number | null;
+    ownerOccupiedUnits: number | null;
+    ownerOccupiedRate: number | null;
+    medianHouseholdIncome: number | null;
+    medianHomeValue: number | null;
+    medianYearStructureBuilt: number | null;
+    populationGrowth: number | null;
+    housingGrowth: number | null;
+    annualBuildingPermits: number | null;
+    datasetYear: number | null;
+    dataSource: string | null;
+    lastUpdated: string | null;
+  } | null;
   mapScanSchedule: {
     timezone: string | null;
     currentLocalTime: string | null;

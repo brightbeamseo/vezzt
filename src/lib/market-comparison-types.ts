@@ -376,6 +376,9 @@ export type MarketComparisonRow = {
   primaryCategory: string | null;
   targetSector: string | null;
   marketId: string | null;
+  /** markets.id UUID when available */
+  marketUuid?: string | null;
+  marketName?: string | null;
   qualificationStatus: string;
   isQualified: boolean;
   /** Preferred Ahrefs analysis target shown in primary columns. */

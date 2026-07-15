@@ -4,6 +4,7 @@
  */
 import { writeFileSync } from "node:fs";
 import { config } from "dotenv";
+import { resolveMarketUuid } from "../src/lib/census/market-enrichment";
 import { getMarket, isInMarket } from "../src/lib/markets";
 import { connectSupabasePg } from "./db";
 
@@ -19,6 +20,7 @@ async function main() {
 
   const market = getMarket(marketArg);
   const client = await connectSupabasePg();
+  const marketUuid = await resolveMarketUuid(client, market.id);
 
   try {
     const { rows } = await client.query<{
@@ -58,18 +60,18 @@ async function main() {
       ]);
       // Tag keepers with market_id
       await client.query(
-        `update public.businesses set market_id = $1, updated_at = now()
+        `update public.businesses set market_id = $1::uuid, updated_at = now()
          where city is not null
            and lower(trim(city)) = any($2::text[])`,
-        [market.id, market.cities.map((c) => c.toLowerCase())],
+        [marketUuid, market.cities.map((c) => c.toLowerCase())],
       );
       await client.query("commit");
     } else if (!dryRun) {
       await client.query(
-        `update public.businesses set market_id = $1, updated_at = now()
+        `update public.businesses set market_id = $1::uuid, updated_at = now()
          where city is not null
            and lower(trim(city)) = any($2::text[])`,
-        [market.id, market.cities.map((c) => c.toLowerCase())],
+        [marketUuid, market.cities.map((c) => c.toLowerCase())],
       );
     }
 

@@ -3,6 +3,7 @@ import {
   DEFAULT_REVIEW_THRESHOLD,
   qualifyRoofingBusiness,
 } from "@/lib/qualification";
+import { resolveMarketUuid } from "@/lib/census/market-enrichment";
 import { getMarket, isInMarket } from "@/lib/markets";
 import { assignMonitoringTier } from "@/lib/monitoring";
 import { connectAdminPg } from "@/lib/admin-db";
@@ -169,6 +170,7 @@ export async function importApifyPlaces(options: {
     options.snapshotDate ?? new Date().toISOString().slice(0, 10);
   const ownsClient = !options.client;
   const client = options.client ?? (await connectAdminPg());
+  const marketUuid = await resolveMarketUuid(client, market.id);
 
   const stats: ApifyImportStats = {
     marketId: market.id,
@@ -381,7 +383,7 @@ export async function importApifyPlaces(options: {
             place.location?.lng ?? null,
             place.url ?? null,
             !(place.permanentlyClosed || place.temporarilyClosed),
-            market.id,
+            marketUuid,
           ],
         );
 

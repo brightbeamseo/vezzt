@@ -51,14 +51,15 @@ export async function startPlaceIdMonitorRun(
       google_place_id: string;
       name: string;
     }>(
-      `select google_place_id, name
-       from public.businesses
-       where market_id = $1
-         and target_sector = 'roofing'
-         and qualification_status in ('qualified', 'below_threshold')
-         and monitoring_tier = $2
-         and google_place_id is not null
-       order by name`,
+      `select b.google_place_id, b.name
+       from public.businesses b
+       join public.markets m on m.id = b.market_id
+       where m.market_slug = $1
+         and b.target_sector = 'roofing'
+         and b.qualification_status in ('qualified', 'below_threshold')
+         and b.monitoring_tier = $2
+         and b.google_place_id is not null
+       order by b.name`,
       [marketId, options.tier],
     );
 

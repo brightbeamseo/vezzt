@@ -107,11 +107,12 @@ async function main() {
       google_maps_url: string | null;
     }>(
       `select id, name, google_place_id, google_maps_url
-       from public.businesses
-       where market_id = $1
-         and monitoring_tier = 1
-         and google_place_id is not null
-       order by name`,
+       from public.businesses b
+       join public.markets m on m.id = b.market_id
+       where m.market_slug = $1
+         and b.monitoring_tier = 1
+         and b.google_place_id is not null
+       order by b.name`,
       [market.id],
     );
 

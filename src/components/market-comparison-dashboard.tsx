@@ -467,6 +467,9 @@ export function MarketComparisonDashboard({ payload }: Props) {
           </label>
           <label className="text-xs text-neutral-600">
             City
+            <span className="ml-1 font-normal text-neutral-400">
+              (informational)
+            </span>
             <select
               className="mt-1 block rounded border border-neutral-300 bg-white px-2 py-1.5 text-sm"
               value={filters.city}

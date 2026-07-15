@@ -6,7 +6,6 @@ import {
   evaluateMapScanWindow,
   resolveMapScanTimezone,
 } from "@/lib/map-scan-schedule";
-import { MARKETS } from "@/lib/markets";
 import type {
   DashboardBusiness,
   DashboardBusinessDetail,
@@ -87,6 +86,48 @@ type BusinessQueryRow = {
   map_scan_schedule_status?: string | null;
   map_scan_wait_reason?: string | null;
   market_id?: string | null;
+  markets?:
+    | {
+        id: string;
+        market_name: string;
+        market_slug: string;
+        market_type: string | null;
+        timezone: string | null;
+        population: number | null;
+        households: number | null;
+        owner_occupied_units: number | null;
+        owner_occupied_rate: number | string | null;
+        median_household_income: number | string | null;
+        median_home_value: number | string | null;
+        median_year_structure_built: number | string | null;
+        population_growth: number | string | null;
+        housing_growth: number | string | null;
+        annual_building_permits: number | null;
+        dataset_year: number | null;
+        data_source: string | null;
+        last_updated: string | null;
+      }
+    | {
+        id: string;
+        market_name: string;
+        market_slug: string;
+        market_type: string | null;
+        timezone: string | null;
+        population: number | null;
+        households: number | null;
+        owner_occupied_units: number | null;
+        owner_occupied_rate: number | string | null;
+        median_household_income: number | string | null;
+        median_home_value: number | string | null;
+        median_year_structure_built: number | string | null;
+        population_growth: number | string | null;
+        housing_growth: number | string | null;
+        annual_building_permits: number | null;
+        dataset_year: number | null;
+        data_source: string | null;
+        last_updated: string | null;
+      }[]
+    | null;
   companies?:
     | {
         id: string;
@@ -321,6 +362,26 @@ export async function getDashboardBusinessById(
       map_scan_schedule_status,
       map_scan_wait_reason,
       market_id,
+      markets (
+        id,
+        market_name,
+        market_slug,
+        market_type,
+        timezone,
+        population,
+        households,
+        owner_occupied_units,
+        owner_occupied_rate,
+        median_household_income,
+        median_home_value,
+        median_year_structure_built,
+        population_growth,
+        housing_growth,
+        annual_building_permits,
+        dataset_year,
+        data_source,
+        last_updated
+      ),
       companies (
         id,
         company_name,
@@ -598,6 +659,32 @@ export async function getDashboardBusinessById(
     }
   }
 
+  const marketRow = asArray(row.markets)[0] ?? null;
+  const market: DashboardBusinessDetail["market"] = marketRow
+    ? {
+        id: marketRow.id,
+        marketName: marketRow.market_name,
+        marketSlug: marketRow.market_slug,
+        marketType: marketRow.market_type,
+        timezone: marketRow.timezone,
+        population: marketRow.population,
+        households: marketRow.households,
+        ownerOccupiedUnits: marketRow.owner_occupied_units,
+        ownerOccupiedRate: toNumber(marketRow.owner_occupied_rate),
+        medianHouseholdIncome: toNumber(marketRow.median_household_income),
+        medianHomeValue: toNumber(marketRow.median_home_value),
+        medianYearStructureBuilt: toNumber(
+          marketRow.median_year_structure_built,
+        ),
+        populationGrowth: toNumber(marketRow.population_growth),
+        housingGrowth: toNumber(marketRow.housing_growth),
+        annualBuildingPermits: marketRow.annual_building_permits,
+        datasetYear: marketRow.dataset_year,
+        dataSource: marketRow.data_source,
+        lastUpdated: marketRow.last_updated,
+      }
+    : null;
+
   return {
     ...base,
     snapshots,
@@ -668,14 +755,11 @@ export async function getDashboardBusinessById(
     analysisMode: row.analysis_mode ?? null,
     siblingLocations,
     zipStats,
+    market,
     mapScanSchedule: (() => {
-      const marketId = row.market_id ?? null;
-      const marketTz =
-        (marketId && MARKETS[marketId as keyof typeof MARKETS]?.timezone) ||
-        null;
       const resolved = resolveMapScanTimezone({
         businessTimezone: row.map_scan_timezone || row.timezone,
-        marketTimezone: marketTz,
+        marketTimezone: marketRow?.timezone ?? null,
       });
       const currentLocalTime = resolved.timeZone
         ? evaluateMapScanWindow(new Date(), resolved.timeZone).requestedAtLocal

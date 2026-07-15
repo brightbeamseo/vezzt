@@ -55,6 +55,10 @@ type SignalRow = {
   qualification_status: string;
   is_qualified: boolean;
   market_id: string | null;
+  market_slug: string | null;
+  market_name: string | null;
+  market_type: string | null;
+  market_timezone: string | null;
   analysis_target: string | null;
   analysis_mode: string | null;
   company_id: string | null;
@@ -256,7 +260,9 @@ function mapSignalRow(raw: SignalRow): Omit<MarketComparisonRow, "percentiles"> 
     googleMapsUrl: raw.google_maps_url,
     primaryCategory: raw.primary_category,
     targetSector: raw.target_sector,
-    marketId: raw.market_id,
+    marketId: raw.market_slug ?? raw.market_id,
+    marketUuid: raw.market_id,
+    marketName: raw.market_name,
     qualificationStatus: raw.qualification_status,
     isQualified: raw.is_qualified,
     analysisTarget: ahrefs.analysisTarget,
@@ -335,7 +341,7 @@ export async function getMarketComparisonSignals(input: {
   const { data, error } = await supabase
     .from("business_current_signals")
     .select("*")
-    .eq("market_id", input.marketId)
+    .eq("market_slug", input.marketId)
     .eq("target_sector", input.sector);
 
   if (error) {

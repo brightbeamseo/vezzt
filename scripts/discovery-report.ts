@@ -58,7 +58,8 @@ async function main() {
                order by rs.snapshot_date desc limit 1
              ) as review_count
       from businesses b
-      where b.market_id = $1
+      join markets m on m.id = b.market_id
+      where m.market_slug = $1
         and b.target_sector = 'roofing'
         and b.qualification_status in ('qualified', 'below_threshold', 'manual_review')
       order by coalesce(
@@ -76,9 +77,11 @@ async function main() {
       city: string | null;
       qualification_reason: string | null;
     }>(
-      `select name, city, qualification_reason from businesses
-       where market_id = $1 and qualification_status = 'excluded'
-       order by name`,
+      `select b.name, b.city, b.qualification_reason
+       from businesses b
+       join markets m on m.id = b.market_id
+       where m.market_slug = $1 and b.qualification_status = 'excluded'
+       order by b.name`,
       [market.id],
     );
 

@@ -32,12 +32,13 @@ async function main() {
   let uniqueZips: string[] = [];
   try {
     const { rows } = await db.query<{ postal_code: string | null }>(
-      `select distinct postal_code
-       from public.businesses
-       where market_id = 'boise-metro'
-         and postal_code is not null
-         and trim(postal_code) <> ''
-       order by postal_code`,
+      `select distinct b.postal_code
+       from public.businesses b
+       left join public.markets m on m.id = b.market_id
+       where m.market_slug = 'boise-metro'
+         and b.postal_code is not null
+         and trim(b.postal_code) <> ''
+       order by b.postal_code`,
     );
 
     uniqueZips = [
@@ -51,13 +52,14 @@ async function main() {
     if (uniqueZips.length === 0) {
       // Fallback: qualified Boise Metro roofing with postal codes
       const { rows: fallback } = await db.query<{ postal_code: string | null }>(
-        `select distinct postal_code
-         from public.businesses
-         where market_id = 'boise-metro'
-           and qualification_status = 'qualified'
-           and target_sector = 'roofing'
-           and postal_code is not null
-           and trim(postal_code) <> ''`,
+        `select distinct b.postal_code
+         from public.businesses b
+         left join public.markets m on m.id = b.market_id
+         where m.market_slug = 'boise-metro'
+           and b.qualification_status = 'qualified'
+           and b.target_sector = 'roofing'
+           and b.postal_code is not null
+           and trim(b.postal_code) <> ''`,
       );
       uniqueZips = [
         ...new Set(

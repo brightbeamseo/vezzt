@@ -911,6 +911,105 @@ export default async function BusinessDetailPage({
         </section>
 
         <section className="rounded-xl border border-neutral-200 bg-white p-5 shadow-sm">
+          <h2 className="text-sm font-semibold text-vezzt-950">Market</h2>
+          <p className="mt-1 text-xs text-neutral-500">
+            Comparison geography for this business. Market Census statistics are
+            shared across locations — not copied onto the business row.
+          </p>
+          {!business.market ? (
+            <p className="mt-4 text-sm text-neutral-500">Not collected</p>
+          ) : (
+            <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-3">
+              <Metric label="Market Name" value={business.market.marketName} />
+              <Metric
+                label="Market Type"
+                value={business.market.marketType ?? "Not collected"}
+              />
+              <Metric
+                label="Timezone"
+                value={business.market.timezone ?? "Not collected"}
+              />
+              <Metric
+                label="Population"
+                value={
+                  business.market.population == null
+                    ? "Not collected"
+                    : business.market.population.toLocaleString("en-US")
+                }
+              />
+              <Metric
+                label="Households"
+                value={
+                  business.market.households == null
+                    ? "Not collected"
+                    : business.market.households.toLocaleString("en-US")
+                }
+              />
+              <Metric
+                label="Owner Occupied Homes"
+                value={
+                  business.market.ownerOccupiedUnits == null
+                    ? "Not collected"
+                    : business.market.ownerOccupiedUnits.toLocaleString("en-US")
+                }
+              />
+              <Metric
+                label="Median Household Income"
+                value={
+                  business.market.medianHouseholdIncome == null
+                    ? "Not collected"
+                    : formatCurrency(business.market.medianHouseholdIncome)
+                }
+              />
+              <Metric
+                label="Median Home Value"
+                value={
+                  business.market.medianHomeValue == null
+                    ? "Not collected"
+                    : formatCurrency(business.market.medianHomeValue)
+                }
+              />
+              <Metric
+                label="Median Home Age"
+                value={
+                  business.market.medianYearStructureBuilt == null
+                    ? "Not collected"
+                    : String(
+                        Math.round(business.market.medianYearStructureBuilt),
+                      )
+                }
+              />
+              <Metric
+                label="Population Growth"
+                value={
+                  business.market.populationGrowth == null
+                    ? "Not collected"
+                    : `${business.market.populationGrowth}`
+                }
+              />
+              <Metric
+                label="Housing Growth"
+                value={
+                  business.market.housingGrowth == null
+                    ? "Not collected"
+                    : `${business.market.housingGrowth}`
+                }
+              />
+              <Metric
+                label="Annual Building Permits"
+                value={
+                  business.market.annualBuildingPermits == null
+                    ? "Not collected"
+                    : business.market.annualBuildingPermits.toLocaleString(
+                        "en-US",
+                      )
+                }
+              />
+            </div>
+          )}
+        </section>
+
+        <section className="rounded-xl border border-neutral-200 bg-white p-5 shadow-sm">
           <h2 className="text-sm font-semibold text-vezzt-950">
             Market Area Snapshot
           </h2>
