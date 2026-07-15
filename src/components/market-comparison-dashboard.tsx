@@ -1107,7 +1107,7 @@ function renderCell(
     case "analysisTarget":
       return (
         <span
-          className="max-w-[14rem] truncate text-xs"
+          className="block max-w-[16rem] break-all text-xs leading-snug text-vezzt-950"
           title={row.analysisTarget ?? ""}
         >
           {row.analysisTarget ?? "—"}
