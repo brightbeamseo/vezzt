@@ -3,6 +3,8 @@
  * Creates the scan + pending DB row, prints the scan ID, exits.
  * Does not poll. Check later: npm run check:lbm-geogrid -- <scan-id>
  *
+ * Enforces Mon–Fri 10:00–16:00 America/Boise unless allowOffHoursOverride.
+ *
  * Usage: npm run scan:point-roofing-map-rank
  */
 import { config } from "dotenv";
@@ -76,20 +78,27 @@ async function main() {
   console.log(
     JSON.stringify(
       {
-        ok: true,
-        started: true,
-        creditsEstimated: result.creditsEstimated,
-        lbmScanId: result.providerScanId,
-        snapshotId: result.snapshotId,
+        ok: !result.deferred,
+        started: result.created,
+        deferred: result.deferred,
+        reused: result.reused,
         status: result.status,
+        schedule: result.schedule,
+        providerScanId: result.providerScanId,
+        snapshotId: result.snapshotId,
+        creditsEstimated: result.creditsEstimated,
         businessId: business.id,
         googlePlaceId: PLACE_ID,
-        next: `npm run check:lbm-geogrid -- ${result.providerScanId}`,
+        next: result.providerScanId
+          ? `npm run check:lbm-geogrid -- ${result.providerScanId}`
+          : undefined,
       },
       null,
       2,
     ),
   );
+
+  if (result.deferred) process.exitCode = 1;
 }
 
 main().catch((error) => {

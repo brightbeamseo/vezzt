@@ -7,6 +7,13 @@ import {
   type LbmGeogridCompetitor,
   type LbmGeogridPayload,
 } from "@/lib/lbm-geogrid";
+import {
+  evaluateMapScanWindow,
+  MAP_SCAN_SCHEDULE_RULE_VERSION,
+  resolveMapScanTimezone,
+  type MapScanScheduleStatus,
+} from "@/lib/map-scan-schedule";
+import { MARKETS } from "@/lib/markets";
 
 export type MapRankSnapshotRow = {
   id: string;
@@ -71,6 +78,12 @@ export async function insertPendingMapRankSnapshot(input: {
   gridSize: number;
   spacingValue: number;
   spacingUnit: string;
+  locationTimezone?: string | null;
+  requestedAtUtc?: Date | null;
+  requestedAtLocal?: string | null;
+  localWeekday?: string | null;
+  localHour?: number | null;
+  scheduleRuleVersion?: string | null;
   client?: Client;
 }): Promise<string> {
   const owns = !input.client;
@@ -80,14 +93,24 @@ export async function insertPendingMapRankSnapshot(input: {
       `insert into public.map_rank_snapshots (
         business_id, provider, provider_scan_id, business_place_id,
         search_term, grid_size, spacing_value, spacing_unit,
-        total_grid_points, status, competitors, ranks
+        total_grid_points, status, competitors, ranks,
+        location_timezone, requested_at_utc, requested_at_local,
+        local_weekday, local_hour, schedule_rule_version
       ) values (
         $1, 'local_brand_manager', $2, $3,
         $4, $5, $6, $7,
-        $8, 'pending', '[]'::jsonb, null
+        $8, 'pending', '[]'::jsonb, null,
+        $9, coalesce($10::timestamptz, now()), $11,
+        $12, $13, $14
       )
       on conflict (provider, provider_scan_id) do update set
-        status = 'pending'
+        status = 'pending',
+        location_timezone = coalesce(excluded.location_timezone, map_rank_snapshots.location_timezone),
+        requested_at_utc = coalesce(excluded.requested_at_utc, map_rank_snapshots.requested_at_utc),
+        requested_at_local = coalesce(excluded.requested_at_local, map_rank_snapshots.requested_at_local),
+        local_weekday = coalesce(excluded.local_weekday, map_rank_snapshots.local_weekday),
+        local_hour = coalesce(excluded.local_hour, map_rank_snapshots.local_hour),
+        schedule_rule_version = coalesce(excluded.schedule_rule_version, map_rank_snapshots.schedule_rule_version)
       returning id`,
       [
         input.businessId,
@@ -98,12 +121,53 @@ export async function insertPendingMapRankSnapshot(input: {
         input.spacingValue,
         input.spacingUnit,
         input.gridSize * input.gridSize,
+        input.locationTimezone ?? null,
+        input.requestedAtUtc?.toISOString() ?? null,
+        input.requestedAtLocal ?? null,
+        input.localWeekday ?? null,
+        input.localHour ?? null,
+        input.scheduleRuleVersion ?? MAP_SCAN_SCHEDULE_RULE_VERSION,
       ],
     );
     return rows[0].id;
   } finally {
     if (owns) await db.end();
   }
+}
+
+async function updateBusinessMapScanSchedule(
+  db: Client,
+  businessId: string,
+  fields: {
+    timezone: string | null;
+    status: MapScanScheduleStatus;
+    nextEligibleAt: Date | null;
+    localTime: string | null;
+    waitReason: string | null;
+    lastRequestedAt?: Date | null;
+  },
+): Promise<void> {
+  await db.query(
+    `update public.businesses set
+      map_scan_timezone = coalesce($2, map_scan_timezone),
+      timezone = coalesce(timezone, $2),
+      map_scan_schedule_status = $3,
+      map_scan_next_eligible_at = $4,
+      map_scan_local_time = $5,
+      map_scan_wait_reason = $6,
+      map_scan_last_requested_at = coalesce($7, map_scan_last_requested_at),
+      updated_at = now()
+     where id = $1`,
+    [
+      businessId,
+      fields.timezone,
+      fields.status,
+      fields.nextEligibleAt?.toISOString() ?? null,
+      fields.localTime,
+      fields.waitReason,
+      fields.lastRequestedAt?.toISOString() ?? null,
+    ],
+  );
 }
 
 export async function completeMapRankSnapshot(input: {
@@ -269,9 +333,12 @@ export async function markMapRankSnapshotFailed(input: {
  * Start one LBM GeoGrid: create remote scan + pending DB row, then return.
  * Does not poll. Use checkLbmGeogridOnce() later.
  *
+ * Enforces Mon–Fri 10:00–16:00 in the business location timezone unless
+ * `allowOffHoursOverride` is explicitly true.
+ *
  * Idempotent: if a pending/processing or finished snapshot already exists for the
  * same business + search term + grid + spacing, returns that scan without creating
- * a new LBM job (avoids duplicate credit spend).
+ * a new LBM job (avoids duplicate credit spend). Finished scans are not rerun.
  */
 export async function startMapRankScan(input: {
   businessId: string;
@@ -285,19 +352,44 @@ export async function startMapRankScan(input: {
   spacingUnit: "miles" | "meters";
   /** Force a new LBM scan even if one already exists for these settings. */
   force?: boolean;
+  /**
+   * Explicit internal override to bypass the local-hours window.
+   * Must be true AND never silent — omitted/false always enforces the rule.
+   */
+  allowOffHoursOverride?: boolean;
+  /** Optional clock injection for tests. */
+  now?: Date;
 }): Promise<{
   creditsEstimated: number;
-  providerScanId: string;
-  snapshotId: string;
-  status: "pending" | "finished" | "processing";
+  providerScanId: string | null;
+  snapshotId: string | null;
+  status:
+    | "pending"
+    | "finished"
+    | "processing"
+    | "waiting_for_window"
+    | "timezone_missing";
   created: boolean;
   reused: boolean;
+  deferred: boolean;
+  schedule: {
+    timeZone: string | null;
+    localTime: string | null;
+    nextEligibleAt: string | null;
+    scheduleStatus: MapScanScheduleStatus;
+    waitReason: string | null;
+    scheduleRuleVersion: string;
+    overrideUsed: boolean;
+  };
 }> {
   const creditsEstimated = input.gridSize * input.gridSize;
+  const now = input.now ?? new Date();
+  const scheduleRuleVersion = MAP_SCAN_SCHEDULE_RULE_VERSION;
 
-  if (!input.force) {
-    const db = await connectAdminPg();
-    try {
+  const db = await connectAdminPg();
+  try {
+    // Idempotent reuse / do not rerun completed scans
+    if (!input.force) {
       const { rows } = await db.query<{
         id: string;
         provider_scan_id: string;
@@ -331,50 +423,209 @@ export async function startMapRankScan(input: {
       );
 
       if (rows[0]) {
+        const reuseStatus =
+          (rows[0].status as "pending" | "processing" | "finished") ??
+          "pending";
+        const scheduleStatus: MapScanScheduleStatus =
+          reuseStatus === "finished"
+            ? "finished"
+            : reuseStatus === "processing"
+              ? "pending"
+              : "pending";
+        await updateBusinessMapScanSchedule(db, input.businessId, {
+          timezone: null,
+          status: scheduleStatus,
+          nextEligibleAt: null,
+          localTime: null,
+          waitReason: null,
+        });
         return {
-          creditsEstimated: rows[0].status === "finished" ? 0 : creditsEstimated,
+          creditsEstimated:
+            rows[0].status === "finished" ? 0 : creditsEstimated,
           providerScanId: rows[0].provider_scan_id,
           snapshotId: rows[0].id,
-          status: (rows[0].status as "pending" | "processing" | "finished") ?? "pending",
+          status: reuseStatus,
           created: false,
           reused: true,
+          deferred: false,
+          schedule: {
+            timeZone: null,
+            localTime: null,
+            nextEligibleAt: null,
+            scheduleStatus,
+            waitReason: null,
+            scheduleRuleVersion,
+            overrideUsed: false,
+          },
         };
       }
-    } finally {
-      await db.end();
     }
+
+    const { rows: bizRows } = await db.query<{
+      timezone: string | null;
+      map_scan_timezone: string | null;
+      market_id: string | null;
+    }>(
+      `select timezone, map_scan_timezone, market_id
+       from public.businesses
+       where id = $1`,
+      [input.businessId],
+    );
+    const biz = bizRows[0];
+    if (!biz) {
+      throw new Error(`Business ${input.businessId} not found`);
+    }
+
+    let marketTimezone: string | null = null;
+    if (biz.market_id) {
+      const { rows: marketRows } = await db.query<{ timezone: string }>(
+        `select timezone from public.markets where id = $1`,
+        [biz.market_id],
+      );
+      marketTimezone = marketRows[0]?.timezone ?? null;
+      if (!marketTimezone) {
+        const codeMarket = MARKETS[biz.market_id as keyof typeof MARKETS];
+        marketTimezone = codeMarket?.timezone ?? null;
+      }
+    }
+
+    const resolved = resolveMapScanTimezone({
+      businessTimezone: biz.map_scan_timezone || biz.timezone,
+      marketTimezone,
+    });
+
+    if (!resolved.timeZone) {
+      await updateBusinessMapScanSchedule(db, input.businessId, {
+        timezone: null,
+        status: "timezone_missing",
+        nextEligibleAt: null,
+        localTime: null,
+        waitReason:
+          "Missing business and market timezone — scan not created; flagged for manual review",
+      });
+      return {
+        creditsEstimated: 0,
+        providerScanId: null,
+        snapshotId: null,
+        status: "timezone_missing",
+        created: false,
+        reused: false,
+        deferred: true,
+        schedule: {
+          timeZone: null,
+          localTime: null,
+          nextEligibleAt: null,
+          scheduleStatus: "timezone_missing",
+          waitReason:
+            "Missing business and market timezone — scan not created; flagged for manual review",
+          scheduleRuleVersion,
+          overrideUsed: false,
+        },
+      };
+    }
+
+    const windowEval = evaluateMapScanWindow(now, resolved.timeZone);
+    const overrideUsed = input.allowOffHoursOverride === true;
+
+    if (!windowEval.eligible && !overrideUsed) {
+      await updateBusinessMapScanSchedule(db, input.businessId, {
+        timezone: resolved.timeZone,
+        status: "waiting_for_window",
+        nextEligibleAt: windowEval.nextEligibleAt,
+        localTime: windowEval.requestedAtLocal,
+        waitReason: windowEval.waitReason,
+      });
+      return {
+        creditsEstimated: 0,
+        providerScanId: null,
+        snapshotId: null,
+        status: "waiting_for_window",
+        created: false,
+        reused: false,
+        deferred: true,
+        schedule: {
+          timeZone: resolved.timeZone,
+          localTime: windowEval.requestedAtLocal,
+          nextEligibleAt: windowEval.nextEligibleAt.toISOString(),
+          scheduleStatus: "waiting_for_window",
+          waitReason: windowEval.waitReason,
+          scheduleRuleVersion,
+          overrideUsed: false,
+        },
+      };
+    }
+
+    const created = await createLbmGeogrid({
+      businessName: input.businessName,
+      googlePlaceId: input.googlePlaceId,
+      latitude: input.latitude,
+      longitude: input.longitude,
+      searchTerm: input.searchTerm,
+      gridSize: input.gridSize,
+      gridPointDistance: input.spacingValue,
+      gridDistanceMeasure: input.spacingUnit,
+      local: true,
+    });
+
+    const snapshotId = await insertPendingMapRankSnapshot({
+      businessId: input.businessId,
+      businessPlaceId: input.googlePlaceId,
+      providerScanId: created.id,
+      searchTerm: input.searchTerm,
+      gridSize: input.gridSize,
+      spacingValue: input.spacingValue,
+      spacingUnit: input.spacingUnit,
+      locationTimezone: resolved.timeZone,
+      requestedAtUtc: now,
+      requestedAtLocal: windowEval.requestedAtLocal,
+      localWeekday: windowEval.localWeekday,
+      localHour: windowEval.localHour,
+      scheduleRuleVersion,
+      client: db,
+    });
+
+    await updateBusinessMapScanSchedule(db, input.businessId, {
+      timezone: resolved.timeZone,
+      status: "submitted",
+      nextEligibleAt: null,
+      localTime: windowEval.requestedAtLocal,
+      waitReason: overrideUsed
+        ? "Submitted with explicit allowOffHoursOverride"
+        : null,
+      lastRequestedAt: now,
+    });
+
+    // Reflect pending shortly after submit
+    await db.query(
+      `update public.businesses
+       set map_scan_schedule_status = 'pending'
+       where id = $1`,
+      [input.businessId],
+    );
+
+    return {
+      creditsEstimated,
+      providerScanId: created.id,
+      snapshotId,
+      status: "pending",
+      created: true,
+      reused: false,
+      deferred: false,
+      schedule: {
+        timeZone: resolved.timeZone,
+        localTime: windowEval.requestedAtLocal,
+        nextEligibleAt: null,
+        scheduleStatus: "pending",
+        waitReason: overrideUsed
+          ? "Submitted with explicit allowOffHoursOverride"
+          : null,
+        scheduleRuleVersion,
+        overrideUsed,
+      },
+    };
+  } finally {
+    await db.end();
   }
-
-  const created = await createLbmGeogrid({
-    businessName: input.businessName,
-    googlePlaceId: input.googlePlaceId,
-    latitude: input.latitude,
-    longitude: input.longitude,
-    searchTerm: input.searchTerm,
-    gridSize: input.gridSize,
-    gridPointDistance: input.spacingValue,
-    gridDistanceMeasure: input.spacingUnit,
-    local: true,
-  });
-
-  const snapshotId = await insertPendingMapRankSnapshot({
-    businessId: input.businessId,
-    businessPlaceId: input.googlePlaceId,
-    providerScanId: created.id,
-    searchTerm: input.searchTerm,
-    gridSize: input.gridSize,
-    spacingValue: input.spacingValue,
-    spacingUnit: input.spacingUnit,
-  });
-
-  return {
-    creditsEstimated,
-    providerScanId: created.id,
-    snapshotId,
-    status: "pending",
-    created: true,
-    reused: false,
-  };
 }
 
 /**
@@ -395,10 +646,11 @@ export async function checkLbmGeogridOnce(
   const db = await connectAdminPg();
   try {
     const { rows: existing } = await db.query<{
+      business_id: string;
       business_place_id: string;
       status: string | null;
     }>(
-      `select business_place_id, status
+      `select business_id, business_place_id, status
        from public.map_rank_snapshots
        where provider = 'local_brand_manager'
          and provider_scan_id = $1`,
@@ -412,6 +664,7 @@ export async function checkLbmGeogridOnce(
     }
 
     const placeId = existing[0].business_place_id;
+    const businessId = existing[0].business_id;
     const payload = await fetchLbmGeogrid(providerScanId);
     const lbmState = payload.state ?? null;
 
@@ -421,6 +674,13 @@ export async function checkLbmGeogridOnce(
         businessPlaceId: placeId,
         payload,
         client: db,
+      });
+      await updateBusinessMapScanSchedule(db, businessId, {
+        timezone: null,
+        status: "finished",
+        nextEligibleAt: null,
+        localTime: null,
+        waitReason: null,
       });
       return {
         providerScanId,
@@ -437,6 +697,13 @@ export async function checkLbmGeogridOnce(
         errorMessage: `LBM geogrid state=${lbmState}`,
         raw: payload,
         client: db,
+      });
+      await updateBusinessMapScanSchedule(db, businessId, {
+        timezone: null,
+        status: "failed",
+        nextEligibleAt: null,
+        localTime: null,
+        waitReason: `LBM geogrid state=${lbmState}`,
       });
       return {
         providerScanId,
@@ -484,11 +751,26 @@ export async function runAndStoreMapRankScan(input: {
   spacingUnit: "miles" | "meters";
 }): Promise<{
   creditsEstimated: number;
-  providerScanId: string;
-  snapshotId: string;
-  status: "pending" | "finished" | "processing";
+  providerScanId: string | null;
+  snapshotId: string | null;
+  status:
+    | "pending"
+    | "finished"
+    | "processing"
+    | "waiting_for_window"
+    | "timezone_missing";
   created: boolean;
   reused: boolean;
+  deferred: boolean;
+  schedule: {
+    timeZone: string | null;
+    localTime: string | null;
+    nextEligibleAt: string | null;
+    scheduleStatus: MapScanScheduleStatus;
+    waitReason: string | null;
+    scheduleRuleVersion: string;
+    overrideUsed: boolean;
+  };
 }> {
   return startMapRankScan(input);
 }

@@ -175,6 +175,14 @@ export type DashboardBusinessDetail = DashboardBusiness & {
     datasetYear: number | null;
     dataSource: string | null;
   } | null;
+  mapScanSchedule: {
+    timezone: string | null;
+    currentLocalTime: string | null;
+    nextEligibleAt: string | null;
+    scheduleStatus: string | null;
+    waitReason: string | null;
+    lastRequestedAt: string | null;
+  } | null;
 };
 
 export type DashboardSummary = {

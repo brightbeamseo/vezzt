@@ -2,6 +2,11 @@ import { createClient } from "@/utils/supabase/server";
 import { cookies } from "next/headers";
 import type { QualificationStatus } from "@/lib/qualification";
 import { normalizeZipCode } from "@/lib/census";
+import {
+  evaluateMapScanWindow,
+  resolveMapScanTimezone,
+} from "@/lib/map-scan-schedule";
+import { MARKETS } from "@/lib/markets";
 import type {
   DashboardBusiness,
   DashboardBusinessDetail,
@@ -74,6 +79,14 @@ type BusinessQueryRow = {
   company_id?: string | null;
   analysis_target?: string | null;
   analysis_mode?: string | null;
+  timezone?: string | null;
+  map_scan_timezone?: string | null;
+  map_scan_next_eligible_at?: string | null;
+  map_scan_last_requested_at?: string | null;
+  map_scan_local_time?: string | null;
+  map_scan_schedule_status?: string | null;
+  map_scan_wait_reason?: string | null;
+  market_id?: string | null;
   companies?:
     | {
         id: string;
@@ -300,6 +313,14 @@ export async function getDashboardBusinessById(
       company_id,
       analysis_target,
       analysis_mode,
+      timezone,
+      map_scan_timezone,
+      map_scan_next_eligible_at,
+      map_scan_last_requested_at,
+      map_scan_local_time,
+      map_scan_schedule_status,
+      map_scan_wait_reason,
+      market_id,
       companies (
         id,
         company_name,
@@ -647,6 +668,27 @@ export async function getDashboardBusinessById(
     analysisMode: row.analysis_mode ?? null,
     siblingLocations,
     zipStats,
+    mapScanSchedule: (() => {
+      const marketId = row.market_id ?? null;
+      const marketTz =
+        (marketId && MARKETS[marketId as keyof typeof MARKETS]?.timezone) ||
+        null;
+      const resolved = resolveMapScanTimezone({
+        businessTimezone: row.map_scan_timezone || row.timezone,
+        marketTimezone: marketTz,
+      });
+      const currentLocalTime = resolved.timeZone
+        ? evaluateMapScanWindow(new Date(), resolved.timeZone).requestedAtLocal
+        : null;
+      return {
+        timezone: resolved.timeZone,
+        currentLocalTime,
+        nextEligibleAt: row.map_scan_next_eligible_at ?? null,
+        scheduleStatus: row.map_scan_schedule_status ?? null,
+        waitReason: row.map_scan_wait_reason ?? null,
+        lastRequestedAt: row.map_scan_last_requested_at ?? null,
+      };
+    })(),
   };
 }
 

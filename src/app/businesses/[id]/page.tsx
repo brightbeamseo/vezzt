@@ -856,6 +856,62 @@ export default async function BusinessDetailPage({
 
         <section className="rounded-xl border border-neutral-200 bg-white p-5 shadow-sm">
           <h2 className="text-sm font-semibold text-vezzt-950">
+            Map Rank Schedule
+          </h2>
+          <p className="mt-1 text-xs text-neutral-500">
+            GeoGrid scans only start Mon–Fri 10:00 AM–4:00 PM in the business
+            location timezone (IANA / DST-aware).
+          </p>
+          <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-3">
+            <Metric
+              label="Business timezone"
+              value={business.mapScanSchedule?.timezone || "Missing"}
+            />
+            <Metric
+              label="Current local time"
+              value={business.mapScanSchedule?.currentLocalTime || "—"}
+            />
+            <Metric
+              label="Scheduling status"
+              value={business.mapScanSchedule?.scheduleStatus || "—"}
+            />
+            <Metric
+              label="Next eligible scan"
+              value={
+                business.mapScanSchedule?.nextEligibleAt
+                  ? new Date(
+                      business.mapScanSchedule.nextEligibleAt,
+                    ).toLocaleString("en-US", {
+                      timeZone:
+                        business.mapScanSchedule.timezone || "America/Boise",
+                    })
+                  : business.mapScanSchedule?.scheduleStatus === "eligible"
+                    ? "Eligible now"
+                    : "—"
+              }
+            />
+            <Metric
+              label="Wait reason"
+              value={business.mapScanSchedule?.waitReason || "—"}
+            />
+            <Metric
+              label="Last scan requested"
+              value={
+                business.mapScanSchedule?.lastRequestedAt
+                  ? new Date(
+                      business.mapScanSchedule.lastRequestedAt,
+                    ).toLocaleString("en-US", {
+                      timeZone:
+                        business.mapScanSchedule.timezone || "America/Boise",
+                    })
+                  : "—"
+              }
+            />
+          </div>
+        </section>
+
+        <section className="rounded-xl border border-neutral-200 bg-white p-5 shadow-sm">
+          <h2 className="text-sm font-semibold text-vezzt-950">
             Market Area Snapshot
           </h2>
           <p className="mt-1 text-xs text-neutral-500">

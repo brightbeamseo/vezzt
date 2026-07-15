@@ -129,8 +129,20 @@ async function main() {
         status: result.status,
         created: result.created,
         reused: result.reused,
+        deferred: result.deferred,
+        schedule: result.schedule,
         creditsEstimated: result.creditsEstimated,
       };
+
+      if (result.deferred) {
+        skipped.push({
+          businessId: business.id,
+          name: business.name,
+          reason: result.status,
+          schedule: result.schedule,
+        });
+        continue;
+      }
 
       if (result.created) {
         creditsExpectedNew += result.creditsEstimated;

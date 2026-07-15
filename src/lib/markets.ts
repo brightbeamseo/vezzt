@@ -9,6 +9,8 @@ export type MarketDefinition = {
   id: MarketId;
   name: string;
   state: string;
+  /** IANA timezone for local-hours scan scheduling. */
+  timezone: string;
   /** Approved city names (case-insensitive match). */
   cities: string[];
   /** Default discovery search terms for this market's vertical pilots. */
@@ -25,6 +27,7 @@ export const MARKETS: Record<MarketId, MarketDefinition> = {
     id: "boise-metro",
     name: "Boise Metro",
     state: "Idaho",
+    timezone: "America/Boise",
     cities: [
       "Boise",
       "Meridian",
