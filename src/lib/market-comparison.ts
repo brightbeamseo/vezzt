@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { createClient } from "@/utils/supabase/server";
 import { percentileRank } from "@/lib/market-comparison-utils";
+import { calculateReviewAnalytics } from "@/lib/review-analytics";
 import type {
   MarketComparisonPayload,
   MarketComparisonRow,
@@ -282,6 +283,13 @@ function mapSignalRow(raw: SignalRow): Omit<MarketComparisonRow, "percentiles"> 
     weeklyReviewVelocity,
     estimatedMonthlyReviewVelocity,
     reviewSnapshotCount,
+    hasReviewHistory: false,
+    reviewsLast30Days: null,
+    reviewsLast90Days: null,
+    reviewsLast365Days: null,
+    reviewHistory90DayVelocity: null,
+    reviewMomentum: null,
+    ownerResponseRate: null,
     organicTraffic: ahrefs.organicTraffic,
     organicKeywords: ahrefs.organicKeywords,
     keywordsTop3: ahrefs.keywordsTop3,
@@ -365,6 +373,63 @@ export async function getMarketComparisonSignals(input: {
     .map(([id]) => id);
 
   const mapped = rawRows.map(mapSignalRow);
+
+  const businessIds = [...new Set(mapped.map((r) => r.businessId))];
+  if (businessIds.length > 0) {
+    const { data: reviewRows, error: reviewError } = await supabase
+      .from("reviews")
+      .select(
+        "business_id, published_at, rating, owner_response_text, owner_response_date",
+      )
+      .in("business_id", businessIds)
+      .limit(50000);
+
+    if (reviewError) {
+      throw new Error(
+        `Failed to load review history for market comparison: ${reviewError.message}`,
+      );
+    }
+
+    const byBusiness = new Map<
+      string,
+      {
+        publishedAt: Date;
+        rating: number | null;
+        ownerResponseText: string | null;
+        ownerResponseDate: Date | null;
+      }[]
+    >();
+
+    for (const r of reviewRows ?? []) {
+      const bid = r.business_id as string;
+      let list = byBusiness.get(bid);
+      if (!list) {
+        list = [];
+        byBusiness.set(bid, list);
+      }
+      list.push({
+        publishedAt: new Date(r.published_at as string),
+        rating: toNumber(r.rating as number | string | null),
+        ownerResponseText: (r.owner_response_text as string | null) ?? null,
+        ownerResponseDate: r.owner_response_date
+          ? new Date(r.owner_response_date as string)
+          : null,
+      });
+    }
+
+    for (const row of mapped) {
+      const records = byBusiness.get(row.businessId);
+      if (!records || records.length === 0) continue;
+      const analytics = calculateReviewAnalytics(records);
+      row.hasReviewHistory = true;
+      row.reviewsLast30Days = analytics.reviewsLast30Days;
+      row.reviewsLast90Days = analytics.reviewsLast90Days;
+      row.reviewsLast365Days = analytics.reviewsLast365Days;
+      row.reviewHistory90DayVelocity = analytics.current90DayMonthlyVelocity;
+      row.reviewMomentum = analytics.reviewMomentumPct;
+      row.ownerResponseRate = analytics.ownerResponseRate;
+    }
+  }
 
   const reviewUniverse = mapped.map((r) => r.reviewCount);
   const trafficUniverse = mapped.map((r) => r.organicTraffic.value);

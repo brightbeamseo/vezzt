@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { getDashboardBusinessById } from "@/lib/dashboard-queries";
 import { formatNullable, formatGridRank, formatSeoMetric, formatCurrency } from "@/lib/format";
 import { ReviewCountChart } from "@/components/dashboard/review-count-chart";
+import { ReviewHistorySection } from "@/components/dashboard/review-history-section";
 import { MapRankGrid } from "@/components/dashboard/map-rank-grid";
 import { SCORE_MODEL_STATUS } from "@/lib/dashboard-types";
 
@@ -853,6 +854,31 @@ export default async function BusinessDetailPage({
             </table>
           </div>
         </section>
+
+        <ReviewHistorySection
+          analytics={
+            business.reviewHistory?.analytics ?? {
+              totalImportedReviews: 0,
+              earliestReviewDate: null,
+              latestReviewDate: null,
+              reviewsLast30Days: 0,
+              reviewsLast90Days: 0,
+              reviewsLast365Days: 0,
+              avgReviewsPerMonth90d: null,
+              avgReviewsPerMonth365d: null,
+              current90DayMonthlyVelocity: null,
+              prior90DayMonthlyVelocity: null,
+              reviewMomentumPct: null,
+              averageRatingLast90Days: null,
+              averageRatingLast365Days: null,
+              ownerResponseRate: null,
+              medianOwnerResponseHours: null,
+            }
+          }
+          monthly={business.reviewHistory?.monthly ?? []}
+          reviews={business.reviewHistory?.reviews ?? []}
+          googleSnapshotCount={business.reviewCount}
+        />
 
         <section className="rounded-xl border border-neutral-200 bg-white p-5 shadow-sm">
           <h2 className="text-sm font-semibold text-vezzt-950">

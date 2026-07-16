@@ -48,6 +48,8 @@
     "db:apply-map-scan-hours": "tsx scripts/apply-sql.ts supabase/migrations/20250714270000_map_scan_local_hours.sql",
     "db:apply-markets-census": "tsx scripts/apply-sql.ts supabase/migrations/20260715025823_markets_census_architecture.sql",
     "enrich:markets": "tsx scripts/enrich-markets.ts",
+    "enrich:reviews": "tsx scripts/enrich-reviews.ts",
+    "db:apply-reviews": "tsx scripts/apply-sql.ts supabase/migrations/20250716200000_reviews.sql",
     "report:map-scan-schedule": "tsx scripts/report-map-scan-schedule.ts",
     "verify:supabase": "tsx scripts/verify-supabase.ts"
   },

@@ -1060,6 +1060,30 @@ function cellExport(
       return row.estimatedMonthlyReviewVelocity == null
         ? ""
         : String(row.estimatedMonthlyReviewVelocity);
+    case "reviewsLast30Days":
+      return row.hasReviewHistory && row.reviewsLast30Days != null
+        ? String(row.reviewsLast30Days)
+        : "";
+    case "reviewsLast90Days":
+      return row.hasReviewHistory && row.reviewsLast90Days != null
+        ? String(row.reviewsLast90Days)
+        : "";
+    case "reviewsLast365Days":
+      return row.hasReviewHistory && row.reviewsLast365Days != null
+        ? String(row.reviewsLast365Days)
+        : "";
+    case "reviewHistory90DayVelocity":
+      return row.hasReviewHistory && row.reviewHistory90DayVelocity != null
+        ? String(row.reviewHistory90DayVelocity)
+        : "";
+    case "reviewMomentum":
+      return row.hasReviewHistory && row.reviewMomentum != null
+        ? String(row.reviewMomentum)
+        : "";
+    case "ownerResponseRate":
+      return row.hasReviewHistory && row.ownerResponseRate != null
+        ? String(row.ownerResponseRate)
+        : "";
     case "organicTraffic":
       return row.organicTraffic.value == null
         ? ""
@@ -1324,6 +1348,58 @@ function renderCell(
       return (
         <span className="tabular-nums">
           {formatFloat(row.estimatedMonthlyReviewVelocity, 2)}
+        </span>
+      );
+    case "reviewsLast30Days":
+      return (
+        <span className="tabular-nums">
+          {row.hasReviewHistory
+            ? formatInt(row.reviewsLast30Days)
+            : "Not collected"}
+        </span>
+      );
+    case "reviewsLast90Days":
+      return (
+        <span className="tabular-nums">
+          {row.hasReviewHistory
+            ? formatInt(row.reviewsLast90Days)
+            : "Not collected"}
+        </span>
+      );
+    case "reviewsLast365Days":
+      return (
+        <span className="tabular-nums">
+          {row.hasReviewHistory
+            ? formatInt(row.reviewsLast365Days)
+            : "Not collected"}
+        </span>
+      );
+    case "reviewHistory90DayVelocity":
+      return (
+        <span className="tabular-nums">
+          {row.hasReviewHistory
+            ? formatFloat(row.reviewHistory90DayVelocity, 2)
+            : "Not collected"}
+        </span>
+      );
+    case "reviewMomentum":
+      return (
+        <span className="tabular-nums">
+          {row.hasReviewHistory
+            ? row.reviewMomentum == null
+              ? "—"
+              : `${row.reviewMomentum > 0 ? "+" : ""}${row.reviewMomentum.toFixed(1)}%`
+            : "Not collected"}
+        </span>
+      );
+    case "ownerResponseRate":
+      return (
+        <span className="tabular-nums">
+          {row.hasReviewHistory
+            ? row.ownerResponseRate == null
+              ? "—"
+              : `${(row.ownerResponseRate * 100).toFixed(1)}%`
+            : "Not collected"}
         </span>
       );
     case "organicTraffic":

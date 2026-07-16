@@ -208,6 +208,19 @@ export type DashboardBusinessDetail = DashboardBusiness & {
     waitReason: string | null;
     lastRequestedAt: string | null;
   } | null;
+  /** Full Google review history when imported via Apify Reviews Scraper. */
+  reviewHistory: {
+    analytics: import("@/lib/review-analytics").ReviewAnalytics;
+    monthly: import("@/lib/review-analytics").ReviewMonthlyStat[];
+    reviews: {
+      id: string;
+      publishedAt: string;
+      rating: number | null;
+      reviewText: string | null;
+      ownerResponseDate: string | null;
+      ownerResponseText: string | null;
+    }[];
+  } | null;
 };
 
 export type DashboardSummary = {

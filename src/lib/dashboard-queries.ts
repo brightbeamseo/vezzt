@@ -6,6 +6,10 @@ import {
   evaluateMapScanWindow,
   resolveMapScanTimezone,
 } from "@/lib/map-scan-schedule";
+import {
+  buildMonthlyStatsFromReviews,
+  calculateReviewAnalytics,
+} from "@/lib/review-analytics";
 import type {
   DashboardBusiness,
   DashboardBusinessDetail,
@@ -689,6 +693,45 @@ export async function getDashboardBusinessById(
       }
     : null;
 
+  const { data: reviewRows, error: reviewError } = await supabase
+    .from("reviews")
+    .select(
+      "id, published_at, rating, review_text, owner_response_text, owner_response_date",
+    )
+    .eq("business_id", id)
+    .order("published_at", { ascending: true })
+    .limit(20000);
+
+  if (reviewError) {
+    throw new Error(
+      `Failed to load reviews for ${id}: ${reviewError.message}`,
+    );
+  }
+
+  let reviewHistory: DashboardBusinessDetail["reviewHistory"] = null;
+  if (reviewRows && reviewRows.length > 0) {
+    const records = reviewRows.map((r) => ({
+      publishedAt: new Date(r.published_at as string),
+      rating: toNumber(r.rating as number | string | null),
+      ownerResponseText: (r.owner_response_text as string | null) ?? null,
+      ownerResponseDate: r.owner_response_date
+        ? new Date(r.owner_response_date as string)
+        : null,
+    }));
+    reviewHistory = {
+      analytics: calculateReviewAnalytics(records),
+      monthly: buildMonthlyStatsFromReviews(id, records),
+      reviews: reviewRows.map((r) => ({
+        id: r.id as string,
+        publishedAt: r.published_at as string,
+        rating: toNumber(r.rating as number | string | null),
+        reviewText: (r.review_text as string | null) ?? null,
+        ownerResponseDate: (r.owner_response_date as string | null) ?? null,
+        ownerResponseText: (r.owner_response_text as string | null) ?? null,
+      })),
+    };
+  }
+
   return {
     ...base,
     snapshots,
@@ -777,6 +820,7 @@ export async function getDashboardBusinessById(
         lastRequestedAt: row.map_scan_last_requested_at ?? null,
       };
     })(),
+    reviewHistory,
   };
 }
 

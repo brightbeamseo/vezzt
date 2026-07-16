@@ -48,6 +48,12 @@ export type MarketComparisonColumnId =
   | "reviewsGainedSincePrior"
   | "weeklyReviewVelocity"
   | "estimatedMonthlyReviewVelocity"
+  | "reviewsLast30Days"
+  | "reviewsLast90Days"
+  | "reviewsLast365Days"
+  | "reviewHistory90DayVelocity"
+  | "reviewMomentum"
+  | "ownerResponseRate"
   | "organicTraffic"
   | "organicKeywords"
   | "keywordsTop3"
@@ -140,6 +146,48 @@ export const MARKET_COMPARISON_COLUMNS: MarketComparisonColumnDef[] = [
     group: "Google",
     numeric: true,
     defaultVisible: false,
+  },
+  {
+    id: "reviewsLast30Days",
+    label: "Reviews last 30 days",
+    group: "Review History",
+    numeric: true,
+    defaultVisible: true,
+  },
+  {
+    id: "reviewsLast90Days",
+    label: "Reviews last 90 days",
+    group: "Review History",
+    numeric: true,
+    defaultVisible: true,
+  },
+  {
+    id: "reviewsLast365Days",
+    label: "Reviews last 365 days",
+    group: "Review History",
+    numeric: true,
+    defaultVisible: true,
+  },
+  {
+    id: "reviewHistory90DayVelocity",
+    label: "90-day monthly velocity",
+    group: "Review History",
+    numeric: true,
+    defaultVisible: true,
+  },
+  {
+    id: "reviewMomentum",
+    label: "Review momentum",
+    group: "Review History",
+    numeric: true,
+    defaultVisible: true,
+  },
+  {
+    id: "ownerResponseRate",
+    label: "Owner response rate",
+    group: "Review History",
+    numeric: true,
+    defaultVisible: true,
   },
   {
     id: "organicTraffic",
@@ -456,6 +504,14 @@ export type MarketComparisonRow = {
   weeklyReviewVelocity: number | null;
   estimatedMonthlyReviewVelocity: number | null;
   reviewSnapshotCount: number;
+  /** True when individual reviews were imported into `reviews`. */
+  hasReviewHistory: boolean;
+  reviewsLast30Days: number | null;
+  reviewsLast90Days: number | null;
+  reviewsLast365Days: number | null;
+  reviewHistory90DayVelocity: number | null;
+  reviewMomentum: number | null;
+  ownerResponseRate: number | null;
   organicTraffic: ScopedMetric;
   organicKeywords: ScopedMetric;
   keywordsTop3: ScopedMetric;

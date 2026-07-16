@@ -61,6 +61,18 @@ export function getNumericSortValue(
       return row.weeklyReviewVelocity;
     case "estimatedMonthlyReviewVelocity":
       return row.estimatedMonthlyReviewVelocity;
+    case "reviewsLast30Days":
+      return row.hasReviewHistory ? row.reviewsLast30Days : null;
+    case "reviewsLast90Days":
+      return row.hasReviewHistory ? row.reviewsLast90Days : null;
+    case "reviewsLast365Days":
+      return row.hasReviewHistory ? row.reviewsLast365Days : null;
+    case "reviewHistory90DayVelocity":
+      return row.hasReviewHistory ? row.reviewHistory90DayVelocity : null;
+    case "reviewMomentum":
+      return row.hasReviewHistory ? row.reviewMomentum : null;
+    case "ownerResponseRate":
+      return row.hasReviewHistory ? row.ownerResponseRate : null;
     case "organicTraffic":
       return row.organicTraffic.value;
     case "organicKeywords":
