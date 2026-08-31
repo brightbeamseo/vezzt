@@ -60,7 +60,9 @@
     "db:apply-opportunity-markets": "tsx scripts/apply-sql.ts supabase/migrations/20260831120000_market_opportunity_foundation.sql",
     "db:apply-local-opportunity-areas": "tsx scripts/apply-sql.ts supabase/migrations/20260831140000_local_opportunity_areas.sql",
     "report:map-scan-schedule": "tsx scripts/report-map-scan-schedule.ts",
-    "verify:supabase": "tsx scripts/verify-supabase.ts"
+    "verify:supabase": "tsx scripts/verify-supabase.ts",
+    "fix:loa-demographics": "tsx scripts/fix-loa-demographics-phase4.ts",
+    "analyze:phase4": "tsx scripts/analyze-loa-phase4.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.0",
