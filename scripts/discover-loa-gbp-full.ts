@@ -32,7 +32,7 @@ const MAX_PER_SEARCH = 60;
 const OFFSET_MILES = 8;
 const ZOOM = 13;
 const RADIUS_MILES = 15;
-const CONCURRENCY = 10;
+const CONCURRENCY = 8;
 
 type PointKey = "center" | "north" | "east" | "south" | "west";
 const POINT_ORDER: PointKey[] = ["center", "north", "east", "south", "west"];
@@ -249,6 +249,27 @@ async function mapPool<T>(
   );
 }
 
+async function withDeadlockRetry<T>(
+  fn: () => Promise<T>,
+  attempts = 5,
+): Promise<T> {
+  let last: unknown;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await fn();
+    } catch (e) {
+      last = e;
+      const code =
+        e && typeof e === "object" && "code" in e
+          ? String((e as { code: unknown }).code)
+          : "";
+      if (code !== "40P01" || i === attempts - 1) throw e;
+      await new Promise((r) => setTimeout(r, 50 + Math.random() * 200 * (i + 1)));
+    }
+  }
+  throw last;
+}
+
 async function upsertBusiness(
   client: PoolClient,
   item: PlaceRow,
@@ -264,8 +285,9 @@ async function upsertBusiness(
     ? item.categories.filter((c): c is string => typeof c === "string")
     : [];
 
-  await client.query(
-    `insert into loa_gbp_businesses (
+  await withDeadlockRetry(() =>
+    client.query(
+      `insert into loa_gbp_businesses (
       place_id, title, category_name, categories, qualify_bucket,
       reviews_count, total_score, address, city, state, postal_code,
       lat, lng, website, phone, permanently_closed, temporarily_closed, raw, updated_at
@@ -291,26 +313,27 @@ async function upsertBusiness(
       temporarily_closed = excluded.temporarily_closed,
       raw = coalesce(excluded.raw, loa_gbp_businesses.raw),
       updated_at = now()`,
-    [
-      placeId,
-      item.title ?? null,
-      item.categoryName ?? null,
-      categories,
-      bucket,
-      typeof item.reviewsCount === "number" ? item.reviewsCount : null,
-      typeof item.totalScore === "number" ? item.totalScore : null,
-      item.address ?? null,
-      item.city ?? null,
-      item.state ?? null,
-      item.postalCode ?? null,
-      item.location?.lat ?? null,
-      item.location?.lng ?? null,
-      item.website ?? null,
-      item.phone ?? null,
-      Boolean(item.permanentlyClosed),
-      Boolean(item.temporarilyClosed),
-      JSON.stringify(item),
-    ],
+      [
+        placeId,
+        item.title ?? null,
+        item.categoryName ?? null,
+        categories,
+        bucket,
+        typeof item.reviewsCount === "number" ? item.reviewsCount : null,
+        typeof item.totalScore === "number" ? item.totalScore : null,
+        item.address ?? null,
+        item.city ?? null,
+        item.state ?? null,
+        item.postalCode ?? null,
+        item.location?.lat ?? null,
+        item.location?.lng ?? null,
+        item.website ?? null,
+        item.phone ?? null,
+        Boolean(item.permanentlyClosed),
+        Boolean(item.temporarilyClosed),
+        JSON.stringify(item),
+      ],
+    ),
   );
   return placeId;
 }
