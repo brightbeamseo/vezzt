@@ -32,7 +32,7 @@ const MAX_PER_SEARCH = 60;
 const OFFSET_MILES = 8;
 const ZOOM = 13;
 const RADIUS_MILES = 15;
-const CONCURRENCY = 6;
+const CONCURRENCY = 10;
 
 type PointKey = "center" | "north" | "east" | "south" | "west";
 const POINT_ORDER: PointKey[] = ["center", "north", "east", "south", "west"];
@@ -156,7 +156,16 @@ async function startRun(
     },
   );
   if (!res.ok) {
-    throw new Error(`Start run failed: ${res.status} ${await res.text()}`);
+    const body = await res.text();
+    if (
+      res.status === 403 &&
+      /usage hard limit exceeded|monthly usage/i.test(body)
+    ) {
+      const err = new Error(`APIFY_USAGE_LIMIT: ${body}`);
+      (err as Error & { code?: string }).code = "APIFY_USAGE_LIMIT";
+      throw err;
+    }
+    throw new Error(`Start run failed: ${res.status} ${body}`);
   }
   const json = (await res.json()) as {
     data: { id: string; defaultDatasetId: string };
@@ -449,6 +458,7 @@ async function main() {
   let completed = 0;
   let failed = 0;
   let cost = 0;
+  let usageLimitHit = false;
 
   const progressPath = join(OUT_DIR, "progress.json");
   const saveProgress = () => {
@@ -460,6 +470,7 @@ async function main() {
           failed,
           remaining: limited.length - completed - failed,
           costUsd: Number(cost.toFixed(4)),
+          usageLimitHit,
           updatedAt: new Date().toISOString(),
         },
         null,
@@ -469,6 +480,7 @@ async function main() {
   };
 
   await mapPool(limited, CONCURRENCY, async (job) => {
+    if (usageLimitHit) return;
     const client = await pool.connect();
     try {
       let runId: string;
@@ -486,8 +498,27 @@ async function main() {
         console.log(`skip (import-only) ${job.loa.display_name} / ${job.point}`);
         return;
       } else {
+        if (usageLimitHit) return;
         console.log(`→ ${job.loa.display_name} / ${job.point}`);
-        const started = await startRun(token, job.mapsUrl);
+        let started: { id: string; defaultDatasetId: string };
+        try {
+          started = await startRun(token, job.mapsUrl);
+        } catch (e) {
+          if (
+            e instanceof Error &&
+            (e as Error & { code?: string }).code === "APIFY_USAGE_LIMIT"
+          ) {
+            usageLimitHit = true;
+            console.error(
+              "\n*** Apify monthly usage hard limit exceeded. Stopping new runs. ***\n" +
+                "Raise the limit in Apify Console (Settings → Billing), then re-run:\n" +
+                "  npm run discover:loa-gbp\n",
+            );
+            saveProgress();
+            return;
+          }
+          throw e;
+        }
         const finished = await waitForRun(token, started.id);
         runId = started.id;
         datasetId = finished.defaultDatasetId;
