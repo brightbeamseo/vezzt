@@ -1,4 +1,4 @@
-import { Client } from "pg";
+import { Client, Pool } from "pg";
 
 /**
  * Server-side Postgres client (bypasses RLS). Used for admin mutations.
@@ -48,4 +48,29 @@ export async function connectAdminPg(): Promise<Client> {
   }
 
   throw lastError instanceof Error ? lastError : new Error("DB connect failed");
+}
+
+/** Pooled admin connections for concurrent scripts (discovery, etc.). */
+export function createAdminPgPool(max = 8): Pool {
+  if (process.env.SUPABASE_DB_URL) {
+    return new Pool({
+      connectionString: process.env.SUPABASE_DB_URL,
+      ssl: { rejectUnauthorized: false },
+      max,
+    });
+  }
+
+  const password = process.env.SUPABASE_DATABASE_PASS;
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!password || !supabaseUrl) {
+    throw new Error("Missing database credentials");
+  }
+
+  const projectRef = new URL(supabaseUrl).hostname.split(".")[0];
+  const encoded = encodeURIComponent(password);
+  return new Pool({
+    connectionString: `postgresql://postgres.${projectRef}:${encoded}@aws-1-us-east-2.pooler.supabase.com:6543/postgres`,
+    ssl: { rejectUnauthorized: false },
+    max,
+  });
 }
