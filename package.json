@@ -63,7 +63,8 @@
     "verify:supabase": "tsx scripts/verify-supabase.ts",
     "fix:loa-demographics": "tsx scripts/fix-loa-demographics-phase4.ts",
     "analyze:phase4": "tsx scripts/analyze-loa-phase4.ts",
-    "score:opportunity": "tsx scripts/score-loa-opportunity.ts"
+    "score:opportunity": "tsx scripts/score-loa-opportunity.ts",
+    "analyze:phase6": "tsx scripts/analyze-loa-phase6.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.0",
