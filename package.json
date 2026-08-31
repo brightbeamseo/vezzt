@@ -51,6 +51,8 @@
     "enrich:reviews": "tsx scripts/enrich-reviews.ts",
     "enrich:opportunity-markets": "tsx scripts/enrich-opportunity-markets.ts",
     "build:local-opportunity-areas": "tsx scripts/build-local-opportunity-areas.ts",
+    "pilot:loa-gbp": "tsx scripts/pilot-loa-gbp-discovery.ts",
+    "validate:loa-zcta": "tsx scripts/validate-loa-zcta-approximation.ts",
     "db:apply-reviews": "tsx scripts/apply-sql.ts supabase/migrations/20250716200000_reviews.sql",
     "db:apply-opportunity-markets": "tsx scripts/apply-sql.ts supabase/migrations/20260831120000_market_opportunity_foundation.sql",
     "db:apply-local-opportunity-areas": "tsx scripts/apply-sql.ts supabase/migrations/20260831140000_local_opportunity_areas.sql",
