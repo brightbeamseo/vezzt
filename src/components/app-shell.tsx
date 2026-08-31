@@ -56,6 +56,12 @@ export function AppShell({ businesses }: AppShellProps) {
             Market compare
           </a>
           <a
+            href="/admin/market-opportunity"
+            className="rounded-lg border border-vezzt-700 px-3 py-1.5 text-xs font-medium text-vezzt-200 transition hover:bg-vezzt-900"
+          >
+            Market opportunity
+          </a>
+          <a
             href="/admin/qualification"
             className="rounded-lg border border-vezzt-700 px-3 py-1.5 text-xs font-medium text-vezzt-200 transition hover:bg-vezzt-900"
           >

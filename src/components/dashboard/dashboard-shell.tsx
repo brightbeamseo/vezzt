@@ -153,6 +153,12 @@ export function DashboardShell({ businesses, summary }: Props) {
               Market compare
             </Link>
             <Link
+              href="/admin/market-opportunity"
+              className="rounded-lg border border-vezzt-700 px-3 py-1.5 text-xs font-medium text-vezzt-100 hover:bg-vezzt-900"
+            >
+              Market opportunity
+            </Link>
+            <Link
               href="/admin/qualification"
               className="rounded-lg border border-vezzt-700 px-3 py-1.5 text-xs font-medium text-vezzt-100 hover:bg-vezzt-900"
             >

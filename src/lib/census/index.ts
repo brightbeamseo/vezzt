@@ -4,3 +4,4 @@
  */
 export * from "./zcta";
 export * from "./market-enrichment";
+export * from "./opportunity-enrichment";

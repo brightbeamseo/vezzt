@@ -49,7 +49,9 @@
     "db:apply-markets-census": "tsx scripts/apply-sql.ts supabase/migrations/20260715025823_markets_census_architecture.sql",
     "enrich:markets": "tsx scripts/enrich-markets.ts",
     "enrich:reviews": "tsx scripts/enrich-reviews.ts",
+    "enrich:opportunity-markets": "tsx scripts/enrich-opportunity-markets.ts",
     "db:apply-reviews": "tsx scripts/apply-sql.ts supabase/migrations/20250716200000_reviews.sql",
+    "db:apply-opportunity-markets": "tsx scripts/apply-sql.ts supabase/migrations/20260831120000_market_opportunity_foundation.sql",
     "report:map-scan-schedule": "tsx scripts/report-map-scan-schedule.ts",
     "verify:supabase": "tsx scripts/verify-supabase.ts"
   },
