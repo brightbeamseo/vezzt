@@ -162,6 +162,32 @@ async function main() {
   ) as Phase4Row[];
 
   const pool = createAdminPgPool(4);
+
+  // Idempotent duplicate exclusions (Phase VI LOA corrections)
+  await pool.query(`
+    update local_opportunity_areas
+    set ranking_excluded = false
+    where slug in ('pahrump-nevada-pahrump', 'heber-city-utah-heber-ut');
+
+    update local_opportunity_areas dup
+    set
+      ranking_excluded = true,
+      ranking_exclude_reason = 'Duplicate of Pahrump LOA under dedicated Pahrump macro market. Same ZCTAs (89048,89060,89061,92384), centers ~1.1mi apart; was also generated under Las Vegas macro.',
+      duplicate_of_loa_id = keep.id
+    from local_opportunity_areas keep
+    where dup.slug = 'pahrump-nevada-las-vegas'
+      and keep.slug = 'pahrump-nevada-pahrump';
+
+    update local_opportunity_areas dup
+    set
+      ranking_excluded = true,
+      ranking_exclude_reason = 'Near-duplicate of Heber City LOA (centers 2.75mi, 75% shared ZCTAs). Keep dedicated Heber market place LOA.',
+      duplicate_of_loa_id = keep.id
+    from local_opportunity_areas keep
+    where dup.slug = 'heber-utah-salt-lake-city'
+      and keep.slug = 'heber-city-utah-heber-ut';
+  `);
+
   const { rows: excluded } = await pool.query<{
     id: string;
     slug: string;
